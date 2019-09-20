@@ -9,10 +9,12 @@ namespace Memory
 {
 	struct PatternAndOffset
 	{
-		PatternAndOffset( std::string_view pattern, ptrdiff_t offset = 0 )
+		constexpr PatternAndOffset( std::string_view pattern, ptrdiff_t offset = 0 ) noexcept
 			: pattern(std::move(pattern)), offset(offset)
 		{
 		}
+
+		constexpr bool Valid() const noexcept { return !pattern.empty(); }
 
 		std::string_view pattern;
 		ptrdiff_t offset;
@@ -22,9 +24,9 @@ namespace Memory
 
 	namespace internal
 	{
-		inline signed char* GetVer()
+		inline int8_t* GetVer()
 		{
-			static signed char	bVer = -1;
+			static int8_t	bVer = -1;
 			return &bVer;
 		}
 
@@ -190,6 +192,10 @@ namespace Memory
 				if ( TryMatch_newsteam_r2() ) return;
 				if ( TryMatch_newsteam_r2_lv() ) return;
 				if ( TryMatch_RGL() ) return;
+
+				// If not matched, from now on we assume this is a "future" EXE
+				// and try to use newsteam/RGL patterns anyway
+				*GetVer() = INT8_MAX;
 			}
 		}
 
@@ -250,7 +256,7 @@ namespace Memory
 			return address11;
 		}
 
-		inline uintptr_t AddressByVersion(AddrVariant address10, AddrVariant address11, AddrVariant addressSteam, AddrVariant addressNewsteamR2, AddrVariant addressNewsteamR2_LV, AddrVariant addressRGL)
+		inline uintptr_t AddressByVersion(AddrVariant address10, AddrVariant address11, AddrVariant addressSteam, PatternAndOffset patternNewExes)
 		{
 			InitializeVersions();
 
@@ -300,53 +306,11 @@ namespace Memory
 
 					return addr;
 				}
-			case 3:
-				return GetDummy();
-			case 4:
-				if ( auto pao = std::get_if<PatternAndOffset>(&addressNewsteamR2) ) return HandlePattern( *pao );
-				else
-				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&addressNewsteamR2);
-		#ifdef assert
-					assert(addr);
-		#endif
-					if ( addr == 0 || addr == UINTPTR_MAX )
-						return GetDummy();
-
-					return DynBaseAddress(addr);
-				}
-			case 5:
-				if ( auto pao = std::get_if<PatternAndOffset>(&addressNewsteamR2) ) return HandlePattern( *pao );
-				else
-				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&addressNewsteamR2_LV);
-		#ifdef assert
-					assert(addr);
-		#endif
-					if ( addr == 0 || addr == UINTPTR_MAX )
-						return GetDummy();
-
-					return DynBaseAddress(addr);
-				}
-			case 6:
-				// RGL should always use patterns, but no point in un-generalizing this code!
-				if ( auto pao = std::get_if<PatternAndOffset>(&addressRGL) ) return HandlePattern( *pao );
-				else
-				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&addressRGL);
-		#ifdef assert
-					assert(addr);
-		#endif
-					if ( addr == 0 || addr == UINTPTR_MAX )
-						return GetDummy();
-
-					return DynBaseAddress(addr);
-				}
 			default:
-		#ifdef assert
-				assert(!"Unknown version!");
-		#endif
-				return GetDummy();
+				if ( !patternNewExes.Valid() )
+					return GetDummy();
+
+				return HandlePattern( patternNewExes );
 			}
 		}
 
@@ -420,19 +384,19 @@ inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t ad
 template<typename T>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), UINTPTR_MAX, UINTPTR_MAX, UINTPTR_MAX ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), Memory::PatternAndOffset(std::string_view()) ));
 }
 
 template<typename T>
-inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam, Memory::AddrVariant addressNewsteamAndNewer)
+inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam, Memory::PatternAndOffset patternNewExes)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), addressNewsteamAndNewer, addressNewsteamAndNewer, addressNewsteamAndNewer ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), std::move(patternNewExes) ));
 }
 
 template<typename T>
-inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant addressNewsteamAndNewer)
+inline T AddressByVersion(Memory::AddrVariant address10, Memory::PatternAndOffset patternNewExes)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), 0, 0, addressNewsteamAndNewer, addressNewsteamAndNewer, addressNewsteamAndNewer ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), 0, 0, std::move(patternNewExes) ));
 }
 
 template<typename T>
