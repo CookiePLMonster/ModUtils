@@ -279,8 +279,8 @@ namespace Memory
 					assert(addr);
 		#endif
 
-					// Safety measures - if null, return dummy var pointer to prevent a crash
-					if ( addr == 0 )
+					// Safety measures - if null or ignored, return dummy var pointer to prevent a crash
+					if ( addr == 0 || addr == UINTPTR_MAX )
 						return GetDummy();
 
 					// Adjust to US if needed
@@ -294,8 +294,8 @@ namespace Memory
 		#ifdef assert
 					assert(addr);
 		#endif
-					// Safety measures - if null, return dummy var pointer to prevent a crash
-					if ( addr == 0 )
+					// Safety measures - if null or ignored, return dummy var pointer to prevent a crash
+					if ( addr == 0 || addr == UINTPTR_MAX )
 						return GetDummy();
 
 					return addr;
@@ -310,7 +310,7 @@ namespace Memory
 		#ifdef assert
 					assert(addr);
 		#endif
-					if ( addr == 0 )
+					if ( addr == 0 || addr == UINTPTR_MAX )
 						return GetDummy();
 
 					return DynBaseAddress(addr);
@@ -323,7 +323,7 @@ namespace Memory
 		#ifdef assert
 					assert(addr);
 		#endif
-					if ( addr == 0 )
+					if ( addr == 0 || addr == UINTPTR_MAX )
 						return GetDummy();
 
 					return DynBaseAddress(addr);
@@ -337,7 +337,7 @@ namespace Memory
 		#ifdef assert
 					assert(addr);
 		#endif
-					if ( addr == 0 )
+					if ( addr == 0 || addr == UINTPTR_MAX )
 						return GetDummy();
 
 					return DynBaseAddress(addr);
@@ -420,7 +420,7 @@ inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t ad
 template<typename T>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), 0, 0, 0 ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), UINTPTR_MAX, UINTPTR_MAX, UINTPTR_MAX ));
 }
 
 template<typename T>
