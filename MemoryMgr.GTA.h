@@ -424,9 +424,9 @@ inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant add
 }
 
 template<typename T>
-inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam, Memory::AddrVariant addressNewsteamR2, Memory::AddrVariant addressNewsteamR2_LV)
+inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam, Memory::AddrVariant addressNewsteamAndNewer)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), std::move(addressNewsteamR2), std::move(addressNewsteamR2_LV), 0 ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), addressNewsteamAndNewer, addressNewsteamAndNewer, addressNewsteamAndNewer ));
 }
 
 template<typename T>
