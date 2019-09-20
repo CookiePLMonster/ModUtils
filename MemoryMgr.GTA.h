@@ -167,6 +167,18 @@ namespace Memory
 			return false;
 		}
 
+		inline bool TryMatch_RGL()
+		{
+			if ( *(uint32_t*)DynBaseAddress(0x858501) == 0x3539F633 )
+			{
+				// RGL (1.0.22.0)
+				*GetVer() = 6;
+				*GetEuropean() = false;
+				return true;
+			}
+			return false;
+		}
+
 		inline void InitializeVersions()
 		{
 			if ( *GetVer() == -1 )
@@ -177,6 +189,7 @@ namespace Memory
 				if ( TryMatch_newsteam_r1() ) return;
 				if ( TryMatch_newsteam_r2() ) return;
 				if ( TryMatch_newsteam_r2_lv() ) return;
+				if ( TryMatch_RGL() ) return;
 			}
 		}
 
@@ -237,7 +250,7 @@ namespace Memory
 			return address11;
 		}
 
-		inline uintptr_t AddressByVersion(AddrVariant address10, AddrVariant address11, AddrVariant addressSteam, AddrVariant addressNewsteamR2, AddrVariant addressNewsteamR2_LV)
+		inline uintptr_t AddressByVersion(AddrVariant address10, AddrVariant address11, AddrVariant addressSteam, AddrVariant addressNewsteamR2, AddrVariant addressNewsteamR2_LV, AddrVariant addressRGL)
 		{
 			InitializeVersions();
 
@@ -245,6 +258,18 @@ namespace Memory
 
 			switch ( bVer )
 			{
+			case 0:
+				if ( auto pao = std::get_if<PatternAndOffset>(&address10) ) return HandlePattern( *pao );
+				else
+				{
+					const uintptr_t addr = *std::get_if<uintptr_t>(&address10);
+		#ifdef assert
+					assert(addr);
+		#endif
+					// Adjust to EU if needed
+					return AdjustAddress_10(addr);
+				}
+				break;
 			case 1:
 				if ( auto pao = std::get_if<PatternAndOffset>(&address11) ) return HandlePattern( *pao );
 				else
@@ -303,17 +328,25 @@ namespace Memory
 
 					return DynBaseAddress(addr);
 				}
-			default:
-				if ( auto pao = std::get_if<PatternAndOffset>(&address10) ) return HandlePattern( *pao );
+			case 6:
+				// RGL should always use patterns, but no point in un-generalizing this code!
+				if ( auto pao = std::get_if<PatternAndOffset>(&addressRGL) ) return HandlePattern( *pao );
 				else
 				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&address10);
+					const uintptr_t addr = *std::get_if<uintptr_t>(&addressRGL);
 		#ifdef assert
 					assert(addr);
 		#endif
-					// Adjust to EU if needed
-					return AdjustAddress_10(addr);
+					if ( addr == 0 )
+						return GetDummy();
+
+					return DynBaseAddress(addr);
 				}
+			default:
+		#ifdef assert
+				assert(!"Unknown version!");
+		#endif
+				return GetDummy();
 			}
 		}
 
@@ -387,19 +420,19 @@ inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t ad
 template<typename T>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), 0, 0 ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), 0, 0, 0 ));
 }
 
 template<typename T>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam, Memory::AddrVariant addressNewsteamR2, Memory::AddrVariant addressNewsteamR2_LV)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), std::move(addressNewsteamR2), std::move(addressNewsteamR2_LV) ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), std::move(addressNewsteamR2), std::move(addressNewsteamR2_LV), 0 ));
 }
 
 template<typename T>
-inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant addressNewsteam)
+inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant addressNewsteamAndNewer)
 {
-	return T(Memory::internal::AddressByVersion( std::move(address10), 0, 0, addressNewsteam, addressNewsteam ));
+	return T(Memory::internal::AddressByVersion( std::move(address10), 0, 0, addressNewsteamAndNewer, addressNewsteamAndNewer, addressNewsteamAndNewer ));
 }
 
 template<typename T>
