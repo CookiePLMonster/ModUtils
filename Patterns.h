@@ -42,7 +42,7 @@ namespace hook
 		std::basic_string<uint8_t> m_mask;
 
 #if PATTERNS_USE_HINTS
-		uint64_t m_hash;
+		uint64_t m_hash = 0;
 #endif
 
 		std::vector<pattern_match> m_matches;
@@ -77,7 +77,7 @@ namespace hook
 		}
 
 	public:
-		pattern(std::string_view pattern)
+		explicit pattern(std::string_view pattern)
 			: pattern(get_process_base())
 		{
 			Initialize(std::move(pattern));
@@ -93,6 +93,15 @@ namespace hook
 			: m_rangeStart(begin), m_rangeEnd(end)
 		{
 			Initialize(std::move(pattern));
+		}
+
+		// Pretransformed patterns
+		inline pattern(std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+			: pattern(get_process_base())
+		{
+			assert( bytes.length() == mask.length() );
+			m_bytes = std::move(bytes);
+			m_mask = std::move(mask);
 		}
 
 		inline pattern&& count(uint32_t expected)
