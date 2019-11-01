@@ -8,14 +8,15 @@
 class ModuleList
 {
 public:
-	struct LazyEnumerateTag {};
+	struct LazyEnumerate_t {};
+	static constexpr LazyEnumerate_t LazyEnumerate {};
 
 	ModuleList()
 	{
 		Enumerate();
 	}
 
-	explicit ModuleList( LazyEnumerateTag )
+	explicit ModuleList( LazyEnumerate_t )
 	{
 	}
 
@@ -194,7 +195,7 @@ private:
 					const wchar_t* dotPos = wcsrchr( nameBegin, '.' );
 					if ( dotPos != nullptr )
 					{
-						m_moduleList.emplace_back( *modules, std::wstring( nameBegin, dotPos ) );
+						m_moduleList.emplace_back( std::piecewise_construct, std::forward_as_tuple(*modules), std::forward_as_tuple(nameBegin, dotPos) );
 					}
 					else
 					{
