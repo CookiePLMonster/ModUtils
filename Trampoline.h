@@ -2,6 +2,7 @@
 
 #include "MemoryMgr.h"
 #include <cassert>
+#include <memory>
 
 // Trampoline class for big (>2GB) jumps
 // Never needed in 32-bit processes so in those cases this does nothing but forwards to Memory functions
@@ -20,13 +21,16 @@ public:
 	{
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo( &systemInfo );
-		m_allocSize = systemInfo.dwAllocationGranularity;
-		m_pageMemory = FindAndAllocateMem( preferredBaseAddr );
+		m_pageMemory = FindAndAllocateMem( preferredBaseAddr, systemInfo.dwAllocationGranularity );
+		if ( m_pageMemory != nullptr )
+		{
+			m_spaceLeft = systemInfo.dwAllocationGranularity;
+		}
 	}
 
 	bool FeasibleForAddresss( uintptr_t addr ) const
 	{
-		return IsAddressFeasible( (uintptr_t)m_pageMemory, addr ) && ( m_sizeUsed + SINGLE_TRAMPOLINE_SIZE ) <= m_allocSize;
+		return IsAddressFeasible( (uintptr_t)m_pageMemory, addr ) && m_spaceLeft >= SINGLE_TRAMPOLINE_SIZE;
 	}
 
 	template<typename Func>
@@ -43,18 +47,10 @@ public:
 		return CreateCodeTrampoline( cast.addr );
 	}
 
-	template<typename Var>
-	LPVOID Pointer( Var var )
+	template<typename T>
+	T* Pointer( size_t align = alignof(T) )
 	{
-		union member_cast
-		{
-			LPVOID addr;
-			Var varPtr;
-		} cast;
-		static_assert( sizeof(cast.addr) == sizeof(cast.varPtr), "member_cast failure!" );
-
-		cast.varPtr = var;
-		return CreatePointerTrampoline( cast.addr );
+		return static_cast<T*>(GetNewSpace( sizeof(T), align ));
 	}
 
 
@@ -63,7 +59,7 @@ private:
 
 	LPVOID CreateCodeTrampoline( LPVOID addr )
 	{
-		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE ));
+		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE, 1 ));
 
 		// Create trampoline code
 		Memory::Patch( trampolineSpace, { 0x48, 0xB8 } );
@@ -73,27 +69,22 @@ private:
 		return trampolineSpace;
 	}
 
-	LPVOID CreatePointerTrampoline( LPVOID addr )
+	LPVOID GetNewSpace( size_t size, size_t alignment )
 	{
-		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( sizeof(addr) ));
-
-		// Create trampoline code
-		Memory::Patch( trampolineSpace, addr );
-
-		return trampolineSpace;
-	}
-
-	LPVOID GetNewSpace( size_t size )
-	{
-		m_sizeUsed += static_cast<DWORD>(size);
-		assert( m_sizeUsed <= m_allocSize );
-
-		LPVOID space = m_pageMemory;
-		m_pageMemory = static_cast<uint8_t*>(m_pageMemory) + size;
+		void* space = std::align( alignment, size, m_pageMemory, m_spaceLeft );
+		if ( space != nullptr )
+		{
+			m_pageMemory = static_cast<uint8_t*>(m_pageMemory) + size;
+			m_spaceLeft -= size;
+		}
+		else
+		{
+			assert( !"Out of trampoline space!" );
+		}
 		return space;
 	}
 
-	LPVOID FindAndAllocateMem( const uintptr_t addr )
+	LPVOID FindAndAllocateMem( const uintptr_t addr, DWORD size )
 	{
 		uintptr_t curAddr = addr;
 		// Find the first unallocated page after 'addr' and try to allocate a page for trampolines there
@@ -101,15 +92,15 @@ private:
 		{
 			MEMORY_BASIC_INFORMATION MemoryInf;
 			if ( VirtualQuery( (LPCVOID)curAddr, &MemoryInf, sizeof(MemoryInf) ) == 0 ) break;
-			if ( MemoryInf.State == MEM_FREE && MemoryInf.RegionSize >= m_allocSize )
+			if ( MemoryInf.State == MEM_FREE && MemoryInf.RegionSize >= size )
 			{
 				// Align up to allocation granularity
 				uintptr_t alignedAddr = uintptr_t(MemoryInf.BaseAddress);
-				alignedAddr = (alignedAddr + m_allocSize - 1) & ~uintptr_t(m_allocSize - 1);
+				alignedAddr = (alignedAddr + size - 1) & ~uintptr_t(size - 1);
 
 				if ( !IsAddressFeasible( alignedAddr, addr ) ) break;
 
-				LPVOID mem = VirtualAlloc( (LPVOID)alignedAddr, m_allocSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
+				LPVOID mem = VirtualAlloc( (LPVOID)alignedAddr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
 				if ( mem != nullptr )
 				{
 					return mem;
@@ -126,9 +117,8 @@ private:
 		return diff >= INT32_MIN && diff <= INT32_MAX;
 	}
 
-	DWORD m_allocSize = 0;
-	DWORD m_sizeUsed = 0;
-	LPVOID m_pageMemory = nullptr;
+	size_t m_spaceLeft = 0;
+	void* m_pageMemory = nullptr;
 
 #else
 
