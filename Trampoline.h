@@ -1,8 +1,8 @@
 #pragma once
 
-#include "MemoryMgr.h"
 #include <cassert>
 #include <memory>
+#include <forward_list>
 
 // Trampoline class for big (>2GB) jumps
 // Never needed in 32-bit processes so in those cases this does nothing but forwards to Memory functions
@@ -62,9 +62,12 @@ private:
 		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE, 1 ));
 
 		// Create trampoline code
-		Memory::Patch( trampolineSpace, { 0x48, 0xB8 } );
-		Memory::Patch( trampolineSpace + 2, addr );
-		Memory::Patch( trampolineSpace + 10, { 0xFF, 0xE0 } );
+		const uint8_t prologue[] = { 0x48, 0xB8 };
+		const uint8_t epilogue[] = { 0xFF, 0xE0 };
+
+		memcpy( trampolineSpace, prologue, sizeof(prologue) );
+		memcpy( trampolineSpace + 2, &addr, sizeof(addr) );
+		memcpy( trampolineSpace + 10, epilogue, sizeof(epilogue) );
 
 		return trampolineSpace;
 	}
