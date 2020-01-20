@@ -1,8 +1,10 @@
 #pragma once
 
+// Trampolines are useless on x86 arch
+#ifdef _WIN64
+
 #include <cassert>
 #include <memory>
-#include <forward_list>
 
 // Trampoline class for big (>2GB) jumps
 // Never needed in 32-bit processes so in those cases this does nothing but forwards to Memory functions
@@ -10,27 +12,10 @@
 class Trampoline
 {
 public:
-	constexpr Trampoline() = default;
-
-	Trampoline( const Trampoline& ) = delete;
-
-// Trampolines are useless on x86 arch
-#ifdef _WIN64
-
-	explicit Trampoline( uintptr_t preferredBaseAddr )
+	template<typename T>
+	static Trampoline* MakeTrampoline( T addr )
 	{
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo( &systemInfo );
-		m_pageMemory = FindAndAllocateMem( preferredBaseAddr, systemInfo.dwAllocationGranularity );
-		if ( m_pageMemory != nullptr )
-		{
-			m_spaceLeft = systemInfo.dwAllocationGranularity;
-		}
-	}
-
-	bool FeasibleForAddresss( uintptr_t addr ) const
-	{
-		return IsAddressFeasible( (uintptr_t)m_pageMemory, addr ) && m_spaceLeft >= SINGLE_TRAMPOLINE_SIZE;
+		return MakeTrampoline( uintptr_t(addr) );
 	}
 
 	template<typename Func>
@@ -53,9 +38,44 @@ public:
 		return static_cast<T*>(GetNewSpace( sizeof(T), align ));
 	}
 
+	template<typename T>
+	T& Reference( size_t align = alignof(T) )
+	{
+		return *Pointer<T>( align );
+	}
+
 
 private:
+	static Trampoline* MakeTrampoline( uintptr_t addr )
+	{
+		Trampoline* current = ms_first;
+		while ( current != nullptr )
+		{
+			if ( current->FeasibleForAddresss( addr ) ) return current;
+
+			current = current->m_next;
+		}
+
+		SYSTEM_INFO systemInfo;
+		GetSystemInfo( &systemInfo );
+
+		return new( FindAndAllocateMem(addr, systemInfo.dwAllocationGranularity) ) Trampoline( systemInfo.dwAllocationGranularity );
+	}
+
+
+	Trampoline( const Trampoline& ) = delete;
+	Trampoline& operator=( const Trampoline& ) = delete;
+
+	explicit Trampoline( DWORD size )
+		: m_next( std::exchange( ms_first, this ) ), m_pageMemory( &this[1] ), m_spaceLeft( size - sizeof(*this) )
+	{
+	}
+
 	static constexpr size_t SINGLE_TRAMPOLINE_SIZE = 12;
+	bool FeasibleForAddresss( uintptr_t addr ) const
+	{
+		return IsAddressFeasible( (uintptr_t)m_pageMemory, addr ) && m_spaceLeft >= SINGLE_TRAMPOLINE_SIZE;
+	}
 
 	LPVOID CreateCodeTrampoline( LPVOID addr )
 	{
@@ -87,7 +107,7 @@ private:
 		return space;
 	}
 
-	LPVOID FindAndAllocateMem( const uintptr_t addr, DWORD size )
+	static LPVOID FindAndAllocateMem( const uintptr_t addr, DWORD size )
 	{
 		uintptr_t curAddr = addr;
 		// Find the first unallocated page after 'addr' and try to allocate a page for trampolines there
@@ -114,63 +134,18 @@ private:
 		return nullptr;
 	}
 
-	bool IsAddressFeasible( uintptr_t trampolineOffset, uintptr_t addr ) const
+	static bool IsAddressFeasible( uintptr_t trampolineOffset, uintptr_t addr )
 	{
 		const ptrdiff_t diff = trampolineOffset - addr;
 		return diff >= INT32_MIN && diff <= INT32_MAX;
 	}
 
-	size_t m_spaceLeft = 0;
+	Trampoline* m_next = nullptr;
 	void* m_pageMemory = nullptr;
+	size_t m_spaceLeft = 0;
 
-#else
-
-	constexpr explicit Trampoline( uintptr_t ) { }
-
-	constexpr bool FeasibleForAddresss( uintptr_t ) const { return true; }
-
-	template<typename Func>
-	constexpr Func Jump( Func func )
-	{
-		return func;
-	}
-
-#endif
+	static inline Trampoline* ms_first = nullptr;
 };
 
-class TrampolineMgr
-{
-public:
-
-// Trampolines are useless on x86 arch
-#ifdef _WIN64
-	template<typename T>
-	Trampoline& MakeTrampoline( T addr )
-	{
-		return MakeTrampoline( uintptr_t(addr) );
-	}
-
-
-private:
-	Trampoline& MakeTrampoline( uintptr_t addr )
-	{
-		for ( auto& it : m_trampolines )
-		{
-			if ( it.FeasibleForAddresss( addr ) ) return it;
-		}
-		return m_trampolines.emplace_front( addr );
-	}
-
-	std::forward_list<Trampoline> m_trampolines;
-
-#else
-
-	template<typename T>
-	Trampoline& MakeTrampoline( T )
-	{
-		static Trampoline dummy;
-		return dummy;
-	}
 
 #endif
-};
