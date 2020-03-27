@@ -59,6 +59,17 @@ struct wrap_winapi_function_helper<Result WINAPI (Args...)>
 
 using wrapped_function = wrap_winapi_function_helper<decltype(HOOKED_FUNCTION)>;
 
+static void ReplaceFunction(void** funcPtr)
+{
+	DWORD dwProtect;
+
+	VirtualProtect(funcPtr, sizeof(*funcPtr), PAGE_READWRITE, &dwProtect);
+	wrapped_function::origFunction = **reinterpret_cast<decltype(wrapped_function::origFunction)*>(funcPtr);
+
+	*funcPtr = wrapped_function::Hook;
+	VirtualProtect(funcPtr, sizeof(*funcPtr), dwProtect, &dwProtect);
+}
+
 static bool PatchIAT()
 {
 	const DWORD_PTR instance = reinterpret_cast<DWORD_PTR>(GetModuleHandle(nullptr));
@@ -79,16 +90,23 @@ static bool PatchIAT()
 				{
 					if ( strcmp(reinterpret_cast<const char*>(instance + pFunctions[j]->Name), STRINGIZE(HOOKED_FUNCTION)) == 0 )
 					{
-						DWORD dwProtect;
 						void** pAddress = reinterpret_cast<void**>(instance + pImports->FirstThunk) + j;
-
-						VirtualProtect(pAddress, sizeof(*pAddress), PAGE_READWRITE, &dwProtect);
-						wrapped_function::origFunction = **reinterpret_cast<decltype(wrapped_function::origFunction)*>(pAddress);
-
-						*pAddress = wrapped_function::Hook;
-						VirtualProtect(pAddress, sizeof(*pAddress), dwProtect, &dwProtect);
-
+						ReplaceFunction(pAddress);
 						return true;
+					}
+				}
+			}
+			else
+			{
+				// This will only work if nobody else beats us to it - which is fine, because a fallback exists
+				void** pFunctions = reinterpret_cast<void**>(instance + pImports->FirstThunk);
+
+				for ( ptrdiff_t j = 0; pFunctions[j] != nullptr; j++ )
+				{
+					if ( pFunctions[j] == HOOKED_FUNCTION )
+					{
+						ReplaceFunction(&pFunctions[j]);
+						return true;					
 					}
 				}
 			}
