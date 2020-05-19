@@ -84,11 +84,11 @@ static bool PatchIAT()
 		{
 			if ( pImports->OriginalFirstThunk != 0 )
 			{
-				const PIMAGE_IMPORT_BY_NAME* pFunctions = reinterpret_cast<PIMAGE_IMPORT_BY_NAME*>(instance + pImports->OriginalFirstThunk);
+				const PIMAGE_THUNK_DATA pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>(instance + pImports->OriginalFirstThunk);
 
-				for ( ptrdiff_t j = 0; pFunctions[j] != nullptr; j++ )
+				for ( ptrdiff_t j = 0; pThunk[j].u1.AddressOfData != 0; j++ )
 				{
-					if ( strcmp(reinterpret_cast<const char*>(instance + pFunctions[j]->Name), STRINGIZE(HOOKED_FUNCTION)) == 0 )
+					if ( strcmp(reinterpret_cast<PIMAGE_IMPORT_BY_NAME>(instance + pThunk[j].u1.AddressOfData)->Name, STRINGIZE(HOOKED_FUNCTION)) == 0 )
 					{
 						void** pAddress = reinterpret_cast<void**>(instance + pImports->FirstThunk) + j;
 						ReplaceFunction(pAddress);
