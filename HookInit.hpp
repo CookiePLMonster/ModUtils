@@ -17,7 +17,8 @@
 // Hooks will be initialized by first attempting to patch IAT of the main module
 // If this fails, selected WinAPI export will be hooked directly
 
-#include "Utils/MemoryMgr.h"
+#include "MemoryMgr.h"
+#include "Trampoline.h"
 
 #define STRINGIZE(s) STRINGIZE2(s)
 #define STRINGIZE2(s) #s
