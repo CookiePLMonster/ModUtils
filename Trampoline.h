@@ -59,15 +59,17 @@ private:
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo( &systemInfo );
 
-		return new( FindAndAllocateMem(addr, systemInfo.dwAllocationGranularity) ) Trampoline( systemInfo.dwAllocationGranularity );
+		void* space = FindAndAllocateMem(addr, systemInfo.dwAllocationGranularity);
+		void* usableSpace = reinterpret_cast<char*>(space) + sizeof(Trampoline);
+		return new( space ) Trampoline( usableSpace, systemInfo.dwAllocationGranularity - sizeof(Trampoline) );
 	}
 
 
 	Trampoline( const Trampoline& ) = delete;
 	Trampoline& operator=( const Trampoline& ) = delete;
 
-	explicit Trampoline( DWORD size )
-		: m_next( std::exchange( ms_first, this ) ), m_pageMemory( &this[1] ), m_spaceLeft( size - sizeof(*this) )
+	explicit Trampoline( void* memory, size_t size )
+		: m_next( std::exchange( ms_first, this ) ), m_pageMemory( memory ), m_spaceLeft( size )
 	{
 	}
 
