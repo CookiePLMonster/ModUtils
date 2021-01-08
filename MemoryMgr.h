@@ -434,23 +434,18 @@ namespace ScopedUnprotect
 			PIMAGE_NT_HEADERS		ntHeader = (PIMAGE_NT_HEADERS)((DWORD_PTR)hInstance + ((PIMAGE_DOS_HEADER)hInstance)->e_lfanew);
 			PIMAGE_SECTION_HEADER	pSection = IMAGE_FIRST_SECTION(ntHeader);
 
-			DWORD_PTR VirtualAddress = DWORD_PTR(-1);
-			SIZE_T VirtualSize = SIZE_T(-1);
 			for ( SIZE_T i = 0, j = ntHeader->FileHeader.NumberOfSections; i < j; ++i, ++pSection )
 			{
 				if ( strncmp( (const char*)pSection->Name, name, IMAGE_SIZEOF_SHORT_NAME ) == 0 )
 				{
-					VirtualAddress = (DWORD_PTR)hInstance + pSection->VirtualAddress;
-					VirtualSize = pSection->Misc.VirtualSize;
+					const DWORD_PTR VirtualAddress = (DWORD_PTR)hInstance + pSection->VirtualAddress;
+					const SIZE_T VirtualSize = pSection->Misc.VirtualSize;
+					UnprotectRange( VirtualAddress, VirtualSize );
+
 					m_locatedSection = true;
 					break;
 				}
 			}
-
-			if ( VirtualAddress == DWORD_PTR(-1) )
-				return;
-
-			UnprotectRange( VirtualAddress, VirtualSize );
 		};
 
 		bool	SectionLocated() const { return m_locatedSection; }
