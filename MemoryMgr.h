@@ -71,31 +71,19 @@ namespace Memory
 	template<typename Var, typename AT>
 	inline void		WriteOffsetValue(AT address, Var var)
 	{
-		union member_cast
-		{
-			intptr_t addr;
-			Var varPtr;
-		} cast;
-		static_assert( sizeof(cast.addr) == sizeof(cast.varPtr), "member_cast failure!" );
-		cast.varPtr = var;
-
 		intptr_t dstAddr = (intptr_t)address;
-		*(int32_t*)dstAddr = static_cast<int32_t>(cast.addr - dstAddr - 4);
+		intptr_t srcAddr;
+		memcpy( &srcAddr, std::addressof(var), sizeof(srcAddr) );
+		*(int32_t*)dstAddr = static_cast<int32_t>(srcAddr - dstAddr - 4);
 	}
 
 	template<typename Var, typename AT>
 	inline void		ReadOffsetValue(AT address, Var& var)
 	{
-		union member_cast
-		{
-			intptr_t addr;
-			Var varPtr;
-		} cast;
-		static_assert( sizeof(cast.addr) == sizeof(cast.varPtr), "member_cast failure!" );
-
 		intptr_t srcAddr = (intptr_t)address;
-		cast.addr = srcAddr + 4 + *(int32_t*)srcAddr;
-		var = cast.varPtr;
+		intptr_t dstAddr = srcAddr + 4 + *(int32_t*)srcAddr;
+		var = {};
+		memcpy( std::addressof(var), &dstAddr, sizeof(dstAddr) );
 	}
 
 	template<typename AT, typename Func>
