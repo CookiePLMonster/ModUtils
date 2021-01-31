@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <memory>
+#include <type_traits>
 
 // Trampoline class for big (>2GB) jumps
 // Never needed in 32-bit processes so in those cases this does nothing but forwards to Memory functions
@@ -27,13 +28,13 @@ public:
 	}
 
 	template<typename T>
-	T* Pointer( size_t align = alignof(T) )
+	auto* Pointer( size_t align = alignof(T) )
 	{
-		return static_cast<T*>(GetNewSpace( sizeof(T), align ));
+		return static_cast< std::remove_const_t<T>* >(GetNewSpace( sizeof(T), align ));
 	}
 
 	template<typename T>
-	T& Reference( size_t align = alignof(T) )
+	auto& Reference( size_t align = alignof(T) )
 	{
 		return *Pointer<T>( align );
 	}
