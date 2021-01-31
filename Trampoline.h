@@ -21,15 +21,9 @@ public:
 	template<typename Func>
 	LPVOID Jump( Func func )
 	{
-		union member_cast
-		{
-			LPVOID addr;
-			Func funcPtr;
-		} cast;
-		static_assert( sizeof(cast.addr) == sizeof(cast.funcPtr), "member_cast failure!" );
-
-		cast.funcPtr = func;
-		return CreateCodeTrampoline( cast.addr );
+		LPVOID addr;
+		memcpy( &addr, std::addressof(func), sizeof(addr) );
+		return CreateCodeTrampoline( addr );
 	}
 
 	template<typename T>
