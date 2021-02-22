@@ -6,6 +6,7 @@
 #include <cassert>
 #include <memory>
 #include <type_traits>
+#include <cstddef>
 
 // Trampoline class for big (>2GB) jumps
 // Never needed in 32-bit processes so in those cases this does nothing but forwards to Memory functions
@@ -37,6 +38,11 @@ public:
 	auto& Reference( size_t align = alignof(T) )
 	{
 		return *Pointer<T>( align );
+	}
+
+	std::byte* RawSpace( size_t size, size_t align = 1 )
+	{
+		return static_cast< std::byte* >(GetNewSpace( size, align ));
 	}
 
 
