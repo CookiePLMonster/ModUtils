@@ -244,7 +244,7 @@ namespace Memory
 		template<typename Var, typename AT>
 		inline void		ReadOffsetValue(AT address, Var& var)
 		{
-			Memory::ReadOffsetValue(DynBaseAddress(address), var);
+			Memory::ReadOffsetValue(address, var);
 		}
 
 		template<typename AT, typename HT>
