@@ -14,8 +14,35 @@
 #pragma warning(push)
 #pragma warning(disable:4201)
 
+#if defined(_CPPUNWIND) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
+#define PATTERNS_ENABLE_EXCEPTIONS
+#endif
+
 namespace hook
 {
+	struct assert_err_policy
+	{
+		static void count([[maybe_unused]] bool countMatches) { assert(countMatches); }
+	};
+
+#ifdef PATTERNS_ENABLE_EXCEPTIONS
+	class txn_exception
+	{
+		// Deliberately empty for now
+	};
+
+#define TXN_CATCH() catch (const hook::txn_exception&) {}
+
+	struct exception_err_policy
+	{
+		static void count(bool countMatches) { if (!countMatches) { throw txn_exception{}; } }
+	};
+#else
+	struct exception_err_policy
+	{
+	};
+#endif
+
 	class pattern_match
 	{
 	private:
@@ -35,93 +62,105 @@ namespace hook
 		}
 	};
 
-	class pattern
+	namespace details
 	{
-	private:
-		std::basic_string<uint8_t> m_bytes;
-		std::basic_string<uint8_t> m_mask;
+		ptrdiff_t get_process_base();
+
+		class basic_pattern_impl
+		{
+		protected:
+			std::basic_string<uint8_t> m_bytes;
+			std::basic_string<uint8_t> m_mask;
 
 #if PATTERNS_USE_HINTS
-		uint64_t m_hash = 0;
+			uint64_t m_hash = 0;
 #endif
 
-		std::vector<pattern_match> m_matches;
+			std::vector<pattern_match> m_matches;
 
-		bool m_matched = false;
+			bool m_matched = false;
 
-		uintptr_t m_rangeStart;
-		uintptr_t m_rangeEnd;
+			uintptr_t m_rangeStart;
+			uintptr_t m_rangeEnd;
 
-	private:
-		static ptrdiff_t get_process_base();
+		protected:
+			void Initialize(std::string_view pattern);
 
-		void Initialize(std::string_view pattern);
+			bool ConsiderHint(uintptr_t offset);
 
-		bool ConsiderHint(uintptr_t offset);
+			void EnsureMatches(uint32_t maxCount);
 
-		void EnsureMatches(uint32_t maxCount);
+			inline pattern_match _get_internal(size_t index) const
+			{
+				return m_matches[index];
+			}
 
-		inline pattern_match _get_internal(size_t index) const
-		{
-			return m_matches[index];
-		}
+		private:
+			explicit basic_pattern_impl(uintptr_t begin, uintptr_t end = 0)
+				: m_rangeStart(begin), m_rangeEnd(end)
+			{
+			}
 
-		inline pattern(uintptr_t module)
-			: pattern( module, 0 )
-		{
-		}
+		public:
+			explicit basic_pattern_impl(std::string_view pattern)
+				: basic_pattern_impl(get_process_base())
+			{
+				Initialize(std::move(pattern));
+			}
 
-		inline pattern(uintptr_t begin, uintptr_t end)
-			: m_rangeStart(begin), m_rangeEnd(end)
-		{
-		}
+			inline basic_pattern_impl(void* module, std::string_view pattern)
+				: basic_pattern_impl(reinterpret_cast<uintptr_t>(module))
+			{
+				Initialize(std::move(pattern));
+			}
 
+			inline basic_pattern_impl(uintptr_t begin, uintptr_t end, std::string_view pattern)
+				: basic_pattern_impl(begin, end)
+			{
+				Initialize(std::move(pattern));
+			}
+
+			// Pretransformed patterns
+			inline basic_pattern_impl(std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+				: basic_pattern_impl(get_process_base())
+			{
+				assert( bytes.length() == mask.length() );
+				m_bytes = std::move(bytes);
+				m_mask = std::move(mask);
+			}
+
+		protected:
+#if PATTERNS_USE_HINTS && PATTERNS_CAN_SERIALIZE_HINTS
+			// define a hint
+			static void hint(uint64_t hash, uintptr_t address);
+#endif
+		};
+	}
+
+	template<typename err_policy>
+	class basic_pattern : details::basic_pattern_impl
+	{
 	public:
-		explicit pattern(std::string_view pattern)
-			: pattern(get_process_base())
-		{
-			Initialize(std::move(pattern));
-		}
+		using details::basic_pattern_impl::basic_pattern_impl;
 
-		inline pattern(void* module, std::string_view pattern)
-			: pattern(reinterpret_cast<uintptr_t>(module))
-		{
-			Initialize(std::move(pattern));
-		}
-
-		inline pattern(uintptr_t begin, uintptr_t end, std::string_view pattern)
-			: m_rangeStart(begin), m_rangeEnd(end)
-		{
-			Initialize(std::move(pattern));
-		}
-
-		// Pretransformed patterns
-		inline pattern(std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
-			: pattern(get_process_base())
-		{
-			assert( bytes.length() == mask.length() );
-			m_bytes = std::move(bytes);
-			m_mask = std::move(mask);
-		}
-
-		inline pattern&& count(uint32_t expected)
+		inline basic_pattern&& count(uint32_t expected)
 		{
 			EnsureMatches(expected);
-			assert(m_matches.size() == expected);
-			return std::forward<pattern>(*this);
+			err_policy::count(m_matches.size() == expected);
+			return std::forward<basic_pattern>(*this);
 		}
 
-		inline pattern&& count_hint(uint32_t expected)
+		inline basic_pattern&& count_hint(uint32_t expected)
 		{
 			EnsureMatches(expected);
-			return std::forward<pattern>(*this);
+			return std::forward<basic_pattern>(*this);
 		}
 
-		inline pattern&& clear()
+		inline basic_pattern&& clear()
 		{
 			m_matches.clear();
 			m_matched = false;
-			return std::forward<pattern>(*this);
+			return std::forward<basic_pattern>(*this);
 		}
 
 		inline size_t size()
@@ -143,7 +182,7 @@ namespace hook
 
 		inline pattern_match get_one()
 		{
-			return std::forward<pattern>(*this).count(1)._get_internal(0);
+			return std::forward<basic_pattern>(*this).count(1)._get_internal(0);
 		}
 
 		template<typename T = void>
@@ -166,16 +205,21 @@ namespace hook
 	public:
 #if PATTERNS_USE_HINTS && PATTERNS_CAN_SERIALIZE_HINTS
 		// define a hint
-		static void hint(uint64_t hash, uintptr_t address);
+		static void hint(uint64_t hash, uintptr_t address)
+		{
+			details::basic_pattern_impl::hint(hash, address);
+		}
 #endif
 	};
 
-	inline pattern make_module_pattern(void* module, std::string_view bytes)
+	using pattern = basic_pattern<assert_err_policy>;
+
+	inline auto make_module_pattern(void* module, std::string_view bytes)
 	{
 		return pattern(module, std::move(bytes));
 	}
 
-	inline pattern make_range_pattern(uintptr_t begin, uintptr_t end, std::string_view bytes)
+	inline auto make_range_pattern(uintptr_t begin, uintptr_t end, std::string_view bytes)
 	{
 		return pattern(begin, end, std::move(bytes));
 	}
@@ -184,6 +228,27 @@ namespace hook
 	inline auto get_pattern(std::string_view pattern_string, ptrdiff_t offset = 0)
 	{
 		return pattern(std::move(pattern_string)).get_first<T>(offset);
+	}
+
+	namespace txn
+	{
+		using pattern = hook::basic_pattern<exception_err_policy>;
+
+		inline auto make_module_pattern(void* module, std::string_view bytes)
+		{
+			return pattern(module, std::move(bytes));
+		}
+
+		inline auto make_range_pattern(uintptr_t begin, uintptr_t end, std::string_view bytes)
+		{
+			return pattern(begin, end, std::move(bytes));
+		}
+
+		template<typename T = void>
+		inline auto get_pattern(std::string_view pattern_string, ptrdiff_t offset = 0)
+		{
+			return pattern(std::move(pattern_string)).get_first<T>(offset);
+		}
 	}
 }
 

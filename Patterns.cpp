@@ -45,10 +45,11 @@ typedef basic_fnv_1<fnv_prime, fnv_offset_basis> fnv_1;
 
 namespace hook
 {
-	ptrdiff_t pattern::get_process_base()
-	{
-		return ptrdiff_t(GetModuleHandle(nullptr));
-	}
+
+ptrdiff_t details::get_process_base()
+{
+	return ptrdiff_t(GetModuleHandle(nullptr));
+}
 
 
 #if PATTERNS_USE_HINTS
@@ -134,7 +135,10 @@ public:
 	inline uintptr_t end() const   { return m_end; }
 };
 
-void pattern::Initialize(std::string_view pattern)
+namespace details
+{
+
+void basic_pattern_impl::Initialize(std::string_view pattern)
 {
 	// get the hash for the base pattern
 #if PATTERNS_USE_HINTS
@@ -170,7 +174,7 @@ void pattern::Initialize(std::string_view pattern)
 #endif
 }
 
-void pattern::EnsureMatches(uint32_t maxCount)
+void basic_pattern_impl::EnsureMatches(uint32_t maxCount)
 {
 	if (m_matched)
 	{
@@ -231,7 +235,7 @@ void pattern::EnsureMatches(uint32_t maxCount)
 	m_matched = true;
 }
 
-bool pattern::ConsiderHint(uintptr_t offset)
+bool basic_pattern_impl::ConsiderHint(uintptr_t offset)
 {
 	uint8_t* ptr = reinterpret_cast<uint8_t*>(offset);
 
@@ -254,7 +258,7 @@ bool pattern::ConsiderHint(uintptr_t offset)
 }
 
 #if PATTERNS_USE_HINTS && PATTERNS_CAN_SERIALIZE_HINTS
-void pattern::hint(uint64_t hash, uintptr_t address)
+void basic_pattern_impl::hint(uint64_t hash, uintptr_t address)
 {
 	auto& hints = getHints();
 
@@ -271,4 +275,6 @@ void pattern::hint(uint64_t hash, uintptr_t address)
 	hints.emplace(hash, address);
 }
 #endif
+
+}
 }
