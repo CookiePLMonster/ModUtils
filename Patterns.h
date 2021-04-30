@@ -11,9 +11,6 @@
 #include <vector>
 #include <string_view>
 
-#pragma warning(push)
-#pragma warning(disable:4201)
-
 #if defined(_CPPUNWIND) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
 #define PATTERNS_ENABLE_EXCEPTIONS
 #endif
@@ -251,5 +248,3 @@ namespace hook
 		}
 	}
 }
-
-#pragma warning(pop)
