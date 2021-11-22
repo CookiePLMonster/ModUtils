@@ -28,14 +28,6 @@ public:
 		return CreateCodeTrampoline( addr );
 	}
 
-	template<typename Func>
-	LPVOID FarJump(Func func)
-	{
-		LPVOID addr;
-		memcpy(&addr, std::addressof(func), sizeof(addr));
-		return CreateCodeTrampolineForFarJmp(addr);
-	}
-
 	template<typename T>
 	auto* Pointer( size_t align = alignof(T) )
 	{
@@ -90,29 +82,12 @@ private:
 
 	LPVOID CreateCodeTrampoline( LPVOID addr )
 	{
-		// -2 because jmp takes 12 bytes
-		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE - 2, 1 ));
+		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE, 1 ));
 
 		// Create trampoline code
-		const uint8_t prologue[] = { 0x48, 0xB8 };
-		const uint8_t epilogue[] = { 0xFF, 0xE0 };
-
-		memcpy( trampolineSpace, prologue, sizeof(prologue) );
-		memcpy( trampolineSpace + sizeof(prologue), &addr, sizeof(addr) );
-		memcpy( trampolineSpace + (sizeof(prologue) + sizeof(addr)), epilogue, sizeof(epilogue) );
-
-		return trampolineSpace;
-	}
-
-	LPVOID CreateCodeTrampolineForFarJmp(LPVOID addr)
-	{
-		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace(SINGLE_TRAMPOLINE_SIZE, 1));
-
-		// Create trampoline code
-		const uint8_t prologue[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-
-		memcpy(trampolineSpace, prologue, sizeof(prologue));
-		memcpy(trampolineSpace + sizeof(prologue), &addr, sizeof(addr));
+		const uint8_t jmp[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
+		memcpy(trampolineSpace, jmp, sizeof(jmp));
+		memcpy(trampolineSpace + sizeof(jmp), &addr, sizeof(addr));
 
 		return trampolineSpace;
 	}
