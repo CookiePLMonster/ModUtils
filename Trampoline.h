@@ -90,7 +90,8 @@ private:
 
 	LPVOID CreateCodeTrampoline( LPVOID addr )
 	{
-		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE, 1 ));
+		// -2 because jmp takes 12 bytes
+		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace( SINGLE_TRAMPOLINE_SIZE - 2, 1 ));
 
 		// Create trampoline code
 		const uint8_t prologue[] = { 0x48, 0xB8 };
