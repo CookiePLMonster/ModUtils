@@ -28,6 +28,14 @@ public:
 		return CreateCodeTrampoline( addr );
 	}
 
+	template<typename Func>
+	LPVOID FarJump(Func func)
+	{
+		LPVOID addr;
+		memcpy(&addr, std::addressof(func), sizeof(addr));
+		return CreateCodeTrampolineForFarJmp(addr);
+	}
+
 	template<typename T>
 	auto* Pointer( size_t align = alignof(T) )
 	{
@@ -74,7 +82,7 @@ private:
 	{
 	}
 
-	static constexpr size_t SINGLE_TRAMPOLINE_SIZE = 12;
+	static constexpr size_t SINGLE_TRAMPOLINE_SIZE = 14;
 	bool FeasibleForAddresss( uintptr_t addr ) const
 	{
 		return IsAddressFeasible( (uintptr_t)m_pageMemory, addr ) && m_spaceLeft >= SINGLE_TRAMPOLINE_SIZE;
@@ -89,8 +97,21 @@ private:
 		const uint8_t epilogue[] = { 0xFF, 0xE0 };
 
 		memcpy( trampolineSpace, prologue, sizeof(prologue) );
-		memcpy( trampolineSpace + 2, &addr, sizeof(addr) );
-		memcpy( trampolineSpace + 10, epilogue, sizeof(epilogue) );
+		memcpy( trampolineSpace + sizeof(prologue), &addr, sizeof(addr) );
+		memcpy( trampolineSpace + (sizeof(prologue) + sizeof(addr)), epilogue, sizeof(epilogue) );
+
+		return trampolineSpace;
+	}
+
+	LPVOID CreateCodeTrampolineForFarJmp(LPVOID addr)
+	{
+		uint8_t* trampolineSpace = static_cast<uint8_t*>(GetNewSpace(SINGLE_TRAMPOLINE_SIZE, 1));
+
+		// Create trampoline code
+		const uint8_t prologue[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
+
+		memcpy(trampolineSpace, prologue, sizeof(prologue));
+		memcpy(trampolineSpace + sizeof(prologue), &addr, sizeof(addr));
 
 		return trampolineSpace;
 	}
