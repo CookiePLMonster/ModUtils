@@ -20,6 +20,8 @@
 #include "MemoryMgr.h"
 #include "Trampoline.h"
 
+#include <mutex>
+
 #define STRINGIZE(s) STRINGIZE2(s)
 #define STRINGIZE2(s) #s
 
@@ -27,13 +29,10 @@ extern void OnInitializeHook();
 
 namespace HookInit
 {
+static std::once_flag hookFlag;
 static void ProcHook()
 {
-	static bool bPatched = false;
-	if ( !std::exchange(bPatched, true) )
-	{
-		OnInitializeHook();
-	}
+	std::call_once(hookFlag, OnInitializeHook);
 }
 
 // Helper to extract parameters from the function
