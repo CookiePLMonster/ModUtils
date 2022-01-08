@@ -139,18 +139,32 @@ static void InstallHooks()
 	}
 }
 
+
+// Optional initialization method, only valid if SKIP_INITIALIZEASI is defined!
+#if defined(SKIP_INITIALIZEASI)
+void DLLMain(HINSTANCE, DWORD reason, void*)
+{
+	if (reason == DLL_PROCESS_ATTACH)
+	{
+		InstallHooks();
+	}
+}
+#endif
+
 }
 
 extern "C"
 {
+#if !defined(SKIP_INITIALIZEASI)
 	static LONG InitCount = 0;
 	__declspec(dllexport) void InitializeASI()
 	{
 		if ( _InterlockedCompareExchange(&InitCount, 1, 0) != 0 ) return;
 		HookInit::InstallHooks();
 	}
+#endif
 
-#if defined(rsc_RevisionID) && defined(rsc_BuildID)
+#if !defined(SKIP_BUILDNUMBER) && defined(rsc_RevisionID) && defined(rsc_BuildID)
 	__declspec(dllexport) uint32_t GetBuildNumber()
 	{
 		return (rsc_RevisionID << 8) | rsc_BuildID;
