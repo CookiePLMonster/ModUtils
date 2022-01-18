@@ -17,13 +17,13 @@ public:
 	template<typename T>
 	static Trampoline* MakeTrampoline( T addr )
 	{
-		return MakeTrampoline( uintptr_t(addr), SINGLE_TRAMPOLINE_SIZE, 1 );
+		return MakeTrampolineInternal( uintptr_t(addr), SINGLE_TRAMPOLINE_SIZE, 1 );
 	}
 
 	template<typename T>
 	static Trampoline* MakeTrampoline( T addr, size_t size, size_t align )
 	{
-		return MakeTrampoline( uintptr_t(addr), size, align );
+		return MakeTrampolineInternal( uintptr_t(addr), size, align );
 	}
 
 	template<typename Func>
@@ -53,7 +53,7 @@ public:
 
 
 private:
-	static Trampoline* MakeTrampoline( uintptr_t addr, size_t size, size_t align )
+	static Trampoline* MakeTrampolineInternal( uintptr_t addr, size_t size, size_t align )
 	{
 		Trampoline* current = ms_first;
 		while ( current != nullptr )
@@ -63,12 +63,7 @@ private:
 			current = current->m_next;
 		}
 
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo( &systemInfo );
-
-		// Find the lowest multiple of dwAllocationGranularity that can fit size+align
 		size_t sizeToAlloc = size + ((sizeof(Trampoline) + align - 1) & ~(align - 1));
-		sizeToAlloc = ((sizeToAlloc + systemInfo.dwAllocationGranularity - 1) / systemInfo.dwAllocationGranularity) * systemInfo.dwAllocationGranularity;
 
 		void* space = FindAndAllocateMem(addr, sizeToAlloc);
 		void* usableSpace = reinterpret_cast<char*>(space) + sizeof(Trampoline);
@@ -129,23 +124,31 @@ private:
 		return space;
 	}
 
-	static LPVOID FindAndAllocateMem( const uintptr_t addr, size_t size )
+	static void* FindAndAllocateMem( const uintptr_t addr, size_t& size )
 	{
 		uintptr_t curAddr = addr;
+
+		SYSTEM_INFO systemInfo;
+		GetSystemInfo( &systemInfo );
+		const DWORD granularity = systemInfo.dwAllocationGranularity;
+
+		// Align size up to allocation granularity
+		size = (size + granularity - 1) & ~size_t(granularity - 1);
+
 		// Find the first unallocated page after 'addr' and try to allocate a page for trampolines there
 		while ( true )
 		{
 			MEMORY_BASIC_INFORMATION MemoryInf;
-			if ( VirtualQuery( (LPCVOID)curAddr, &MemoryInf, sizeof(MemoryInf) ) == 0 ) break;
+			if ( VirtualQuery( reinterpret_cast<LPCVOID>(curAddr), &MemoryInf, sizeof(MemoryInf) ) == 0 ) break;
 			if ( MemoryInf.State == MEM_FREE && MemoryInf.RegionSize >= size )
 			{
 				// Align up to allocation granularity
 				uintptr_t alignedAddr = uintptr_t(MemoryInf.BaseAddress);
-				alignedAddr = (alignedAddr + size - 1) & ~uintptr_t(size - 1);
+				alignedAddr = (alignedAddr + granularity - 1) & ~uintptr_t(granularity - 1);
 
 				if ( !IsAddressFeasible( alignedAddr, addr ) ) break;
 
-				LPVOID mem = VirtualAlloc( (LPVOID)alignedAddr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
+				LPVOID mem = VirtualAlloc( reinterpret_cast<LPVOID>(alignedAddr), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
 				if ( mem != nullptr )
 				{
 					return mem;
