@@ -17,7 +17,13 @@ public:
 	template<typename T>
 	static Trampoline* MakeTrampoline( T addr )
 	{
-		return MakeTrampoline( uintptr_t(addr) );
+		return MakeTrampoline( uintptr_t(addr), SINGLE_TRAMPOLINE_SIZE, 1 );
+	}
+
+	template<typename T>
+	static Trampoline* MakeTrampoline( T addr, size_t size, size_t align )
+	{
+		return MakeTrampoline( uintptr_t(addr), size, align );
 	}
 
 	template<typename Func>
@@ -31,7 +37,7 @@ public:
 	template<typename T>
 	auto* Pointer( size_t align = alignof(T) )
 	{
-		return static_cast< std::remove_const_t<T>* >(GetNewSpace( sizeof(T), align ));
+		return static_cast<std::remove_extent_t<std::remove_const_t<T>>*>(GetNewSpace( sizeof(T), align ));
 	}
 
 	template<typename T>
@@ -47,12 +53,12 @@ public:
 
 
 private:
-	static Trampoline* MakeTrampoline( uintptr_t addr )
+	static Trampoline* MakeTrampoline( uintptr_t addr, size_t size, size_t align )
 	{
 		Trampoline* current = ms_first;
 		while ( current != nullptr )
 		{
-			if ( current->FeasibleForAddresss( addr ) ) return current;
+			if ( current->FeasibleForAddresss( addr, size, align ) ) return current;
 
 			current = current->m_next;
 		}
@@ -60,9 +66,13 @@ private:
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo( &systemInfo );
 
-		void* space = FindAndAllocateMem(addr, systemInfo.dwAllocationGranularity);
+		// Find the lowest multiple of dwAllocationGranularity that can fit size+align
+		size_t sizeToAlloc = size + ((sizeof(Trampoline) + align - 1) & ~(align - 1));
+		sizeToAlloc = ((sizeToAlloc + systemInfo.dwAllocationGranularity - 1) / systemInfo.dwAllocationGranularity) * systemInfo.dwAllocationGranularity;
+
+		void* space = FindAndAllocateMem(addr, sizeToAlloc);
 		void* usableSpace = reinterpret_cast<char*>(space) + sizeof(Trampoline);
-		return new( space ) Trampoline( usableSpace, systemInfo.dwAllocationGranularity - sizeof(Trampoline) );
+		return new( space ) Trampoline( usableSpace, sizeToAlloc - sizeof(Trampoline) );
 	}
 
 
@@ -75,9 +85,21 @@ private:
 	}
 
 	static constexpr size_t SINGLE_TRAMPOLINE_SIZE = 14;
-	bool FeasibleForAddresss( uintptr_t addr ) const
+	bool FeasibleForAddresss( uintptr_t addr, size_t size, size_t align ) const
 	{
-		return IsAddressFeasible( (uintptr_t)m_pageMemory, addr ) && m_spaceLeft >= SINGLE_TRAMPOLINE_SIZE;
+		const uintptr_t pageMem = reinterpret_cast<uintptr_t>(m_pageMemory);
+		if (IsAddressFeasible(pageMem, addr))
+		{
+			// Check if there is enough size (incl. alignment)
+			// Like in std::align
+			size_t offset = static_cast<size_t>(pageMem & (align - 1));
+			if (offset != 0)
+			{
+				offset = align - offset; // number of bytes to skip
+			}
+			return m_spaceLeft >= offset && m_spaceLeft - offset >= size;
+		}
+		return false;
 	}
 
 	LPVOID CreateCodeTrampoline( LPVOID addr )
@@ -107,7 +129,7 @@ private:
 		return space;
 	}
 
-	static LPVOID FindAndAllocateMem( const uintptr_t addr, DWORD size )
+	static LPVOID FindAndAllocateMem( const uintptr_t addr, size_t size )
 	{
 		uintptr_t curAddr = addr;
 		// Find the first unallocated page after 'addr' and try to allocate a page for trampolines there
