@@ -230,6 +230,7 @@ namespace hook
 	namespace txn
 	{
 		using pattern = hook::basic_pattern<exception_err_policy>;
+		using hook::pattern_match;
 
 		inline auto make_module_pattern(void* module, std::string_view bytes)
 		{
