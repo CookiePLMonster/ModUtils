@@ -57,6 +57,11 @@ namespace hook
 			char* ptr = reinterpret_cast<char*>(m_pointer);
 			return reinterpret_cast<T*>(ptr + offset);
 		}
+
+		uintptr_t get_uintptr(ptrdiff_t offset = 0) const
+		{
+			return reinterpret_cast<uintptr_t>(get<void>(offset));
+		}
 	};
 
 	namespace details
@@ -227,6 +232,11 @@ namespace hook
 		return pattern(std::move(pattern_string)).get_first<T>(offset);
 	}
 
+	inline auto get_pattern_uintptr(std::string_view pattern_string, ptrdiff_t offset = 0)
+	{
+		return pattern(std::move(pattern_string)).get_one().get_uintptr(offset);
+	}
+
 	namespace txn
 	{
 		using pattern = hook::basic_pattern<exception_err_policy>;
@@ -246,6 +256,11 @@ namespace hook
 		inline auto get_pattern(std::string_view pattern_string, ptrdiff_t offset = 0)
 		{
 			return pattern(std::move(pattern_string)).get_first<T>(offset);
+		}
+
+		inline auto get_pattern_uintptr(std::string_view pattern_string, ptrdiff_t offset = 0)
+		{
+			return pattern(std::move(pattern_string)).get_one().get_uintptr(offset);
 		}
 	}
 }
