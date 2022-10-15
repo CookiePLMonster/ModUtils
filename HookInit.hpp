@@ -156,7 +156,7 @@ extern "C"
 {
 #if !defined(SKIP_INITIALIZEASI)
 	static LONG InitCount = 0;
-	__declspec(dllexport) void InitializeASI()
+	__declspec(dllexport) void __cdecl InitializeASI()
 	{
 		if ( _InterlockedCompareExchange(&InitCount, 1, 0) != 0 ) return;
 		HookInit::InstallHooks();
@@ -164,7 +164,7 @@ extern "C"
 #endif
 
 #if !defined(SKIP_BUILDNUMBER) && defined(rsc_RevisionID) && defined(rsc_BuildID)
-	__declspec(dllexport) uint32_t GetBuildNumber()
+	__declspec(dllexport) uint32_t __cdecl GetBuildNumber()
 	{
 		return (rsc_RevisionID << 8) | rsc_BuildID;
 	}
