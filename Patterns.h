@@ -131,6 +131,22 @@ namespace hook
 				m_mask = std::move(mask);
 			}
 
+			inline basic_pattern_impl(void* module, std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+				: basic_pattern_impl(reinterpret_cast<uintptr_t>(module))
+			{
+				assert( bytes.length() == mask.length() );
+				m_bytes = std::move(bytes);
+				m_mask = std::move(mask);
+			}
+
+			inline basic_pattern_impl(uintptr_t begin, uintptr_t end, std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+				: basic_pattern_impl(begin, end)
+			{
+				assert( bytes.length() == mask.length() );
+				m_bytes = std::move(bytes);
+				m_mask = std::move(mask);
+			}
+
 		protected:
 #if PATTERNS_USE_HINTS && PATTERNS_CAN_SERIALIZE_HINTS
 			// define a hint
