@@ -126,7 +126,8 @@ private:
 
 	static void* FindAndAllocateMem( const uintptr_t addr, size_t& size )
 	{
-		uintptr_t curAddr = addr;
+		// We need to start searching from 0 as in some cases, the place we want to allocate might be BEHIND US.
+		uintptr_t curAddr = 0;
 
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo( &systemInfo );
@@ -146,17 +147,32 @@ private:
 				uintptr_t alignedAddr = uintptr_t(MemoryInf.BaseAddress);
 				alignedAddr = (alignedAddr + granularity - 1) & ~uintptr_t(granularity - 1);
 
-				if ( !IsAddressFeasible( alignedAddr, addr ) ) break;
+				uintptr_t alignedAddrEnd = uintptr_t(uintptr_t(MemoryInf.BaseAddress) + MemoryInf.RegionSize) - size;
+				alignedAddrEnd = RoundDown(alignedAddrEnd, granularity);
 
-				LPVOID mem = VirtualAlloc( reinterpret_cast<LPVOID>(alignedAddr), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
-				if ( mem != nullptr )
+				if (IsAddressFeasible(alignedAddr, addr)) 
 				{
-					return mem;
+					LPVOID mem = VirtualAlloc(reinterpret_cast<LPVOID>(alignedAddr), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+					if (mem != nullptr)
+						return mem;
+				}
+				else if (IsAddressFeasible(alignedAddrEnd, addr))
+				{
+					LPVOID mem = VirtualAlloc(reinterpret_cast<LPVOID>(alignedAddrEnd), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+					if (mem != nullptr)
+						return mem;
 				}
 			}
 			curAddr += MemoryInf.RegionSize;
 		}
 		return nullptr;
+	}
+
+	static uintptr_t RoundDown( uintptr_t addr, DWORD granularity ) 
+	{
+		return addr >= 0 ? 
+			(addr / granularity) * granularity : 
+			((addr - granularity + 1) / granularity) * granularity;
 	}
 
 	static bool IsAddressFeasible( uintptr_t trampolineOffset, uintptr_t addr )
