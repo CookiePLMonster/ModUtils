@@ -110,20 +110,14 @@ private:
 	uintptr_t m_begin;
 	uintptr_t m_end;
 
-	template<typename TReturn, typename TOffset>
-	TReturn* getRVA(TOffset rva)
-	{
-		return (TReturn*)(m_begin + rva);
-	}
-
 public:
 	explicit executable_meta(uintptr_t module)
-		: m_begin(module)
 	{
-		PIMAGE_DOS_HEADER dosHeader = getRVA<IMAGE_DOS_HEADER>(0);
-		PIMAGE_NT_HEADERS ntHeader = getRVA<IMAGE_NT_HEADERS>(dosHeader->e_lfanew);
+		PIMAGE_DOS_HEADER dosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+		PIMAGE_NT_HEADERS ntHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(module + dosHeader->e_lfanew);
 
-		m_end = m_begin + ntHeader->OptionalHeader.SizeOfImage;
+		m_begin = module + ntHeader->OptionalHeader.BaseOfCode;
+		m_end = m_begin + ntHeader->OptionalHeader.SizeOfCode;
 	}
 
 	executable_meta(uintptr_t begin, uintptr_t end)
