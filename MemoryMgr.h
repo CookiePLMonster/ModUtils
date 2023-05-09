@@ -36,6 +36,7 @@ enum
 template<typename AT>
 inline AT DynBaseAddress(AT address)
 {
+	static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 #ifdef _WIN64
 	return (ptrdiff_t)GetModuleHandle(nullptr) - 0x140000000 + address;
 #else
@@ -47,12 +48,16 @@ namespace Memory
 {
 	template<typename T, typename AT>
 	inline void		Patch(AT address, T value)
-	{*(T*)address = value; }
+	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
+		*(T*)address = value;
+	}
 
 #ifndef _MEMORY_NO_CRT
 	template<typename AT>
 	inline void		Patch(AT address, std::initializer_list<uint8_t> list )
 	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		uint8_t* addr = reinterpret_cast<uint8_t*>(address);
 		std::copy( list.begin(), list.end(), stdext::make_checked_array_iterator(addr, list.size()) );
 	}
@@ -61,7 +66,10 @@ namespace Memory
 	template<typename AT>
 	inline void		Nop(AT address, size_t count)
 #ifndef _MEMORY_NO_CRT
-	{ memset((void*)address, 0x90, count); }
+	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
+		memset((void*)address, 0x90, count);
+	}
 #else
 	{ do {
 		*(uint8_t*)address++ = 0x90;
@@ -71,6 +79,7 @@ namespace Memory
 	template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
 	inline void		WriteOffsetValue(AT address, Var var)
 	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		intptr_t dstAddr = (intptr_t)address;
 		intptr_t srcAddr;
 		memcpy( &srcAddr, std::addressof(var), sizeof(srcAddr) );
@@ -80,6 +89,7 @@ namespace Memory
 	template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
 	inline void		ReadOffsetValue(AT address, Var& var)
 	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		intptr_t srcAddr = (intptr_t)address;
 		intptr_t dstAddr = srcAddr + (4 + extraBytesAfterOffset) + *(int32_t*)srcAddr;
 		var = {};
@@ -124,6 +134,7 @@ namespace Memory
 	template<typename AT>
 	inline AT Verify(AT address, uintptr_t expected)
 	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		assert( uintptr_t(address) == expected );
 		return address;
 	}
