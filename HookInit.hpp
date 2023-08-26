@@ -137,20 +137,19 @@ static void InstallHooks()
 		PatchIAT_ByPointers();
 	}
 }
-
+}
 
 // Optional initialization method, only valid if SKIP_INITIALIZEASI is defined!
 #if defined(SKIP_INITIALIZEASI)
-void DLLMain(HINSTANCE, DWORD reason, void*)
-{
-	if (reason == DLL_PROCESS_ATTACH)
+	BOOL WINAPI DllMain(HINSTANCE, DWORD reason, void*)
 	{
-		InstallHooks();
+		if (reason == DLL_PROCESS_ATTACH)
+		{
+			HookInit::InstallHooks();
+		}
+		return TRUE;
 	}
-}
 #endif
-
-}
 
 extern "C"
 {
