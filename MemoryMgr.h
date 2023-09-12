@@ -122,6 +122,12 @@ namespace Memory
 		return reinterpret_cast<void*>( addr + offset );
 	}
 
+	inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+	{
+		ReadCall(address, func);
+		InjectHook(address, hook);
+	};
+
 #ifndef _MEMORY_NO_CRT
 	inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 	{
@@ -203,6 +209,11 @@ namespace Memory
 		{
 			return Memory::ReadCallFrom(DynBaseAddress(address), offset);
 		}
+
+		inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+		{
+			Memory::InterceptCall(DynBaseAddress(address), func, hook);
+		};
 
 #ifndef _MEMORY_NO_CRT
 		inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
@@ -299,6 +310,15 @@ namespace Memory
 			return Memory::ReadCallFrom(address, offset);
 		}
 
+		inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+		{
+			DWORD		dwProtect;
+
+			VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect);
+			Memory::InterceptCall(address, func, hook);
+			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
+		};
+
 #ifndef _MEMORY_NO_CRT
 		inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 		{
@@ -371,6 +391,11 @@ namespace Memory
 			{
 				Memory::ReadCallFrom(DynBaseAddress(address), offset);
 			}
+
+			inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+			{
+				VP::InterceptCall(DynBaseAddress(address), func, hook);
+			};
 
 #ifndef _MEMORY_NO_CRT
 			inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
