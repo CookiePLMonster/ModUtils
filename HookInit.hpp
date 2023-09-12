@@ -122,9 +122,9 @@ static bool PatchIAT_ByPointers()
 
 #ifdef _WIN64
 	Trampoline* trampoline = Trampoline::MakeTrampoline(wrapped_function::origFunction);
-	Memory::VP::InjectHook(wrapped_function::origFunction, trampoline->Jump(&wrapped_function::OverwritingHook), PATCH_JUMP);
+	Memory::VP::InjectHook(wrapped_function::origFunction, trampoline->Jump(&wrapped_function::OverwritingHook), Memory::HookType::Jump);
 #else
-	Memory::VP::InjectHook(wrapped_function::origFunction, wrapped_function::OverwritingHook, PATCH_JUMP);
+	Memory::VP::InjectHook(wrapped_function::origFunction, wrapped_function::OverwritingHook, Memory::HookType::Jump);
 #endif
 	return true;
 }

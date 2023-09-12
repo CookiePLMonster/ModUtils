@@ -27,25 +27,25 @@
 #include <iterator>
 #endif
 
-enum
-{
-	PATCH_CALL,
-	PATCH_JUMP
-};
-
-template<typename AT>
-inline AT DynBaseAddress(AT address)
-{
-	static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-#ifdef _WIN64
-	return (ptrdiff_t)GetModuleHandle(nullptr) - 0x140000000 + address;
-#else
-	return (ptrdiff_t)GetModuleHandle(nullptr) - 0x400000 + address;
-#endif
-}
-
 namespace Memory
 {
+	enum class HookType
+	{
+		Call,
+		Jump,
+	};
+
+	template<typename AT>
+	inline AT DynBaseAddress(AT address)
+	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
+	#ifdef _WIN64
+		return (ptrdiff_t)GetModuleHandle(nullptr) - 0x140000000 + address;
+	#else
+		return (ptrdiff_t)GetModuleHandle(nullptr) - 0x400000 + address;
+	#endif
+	}
+
 	template<typename T, typename AT>
 	inline void		Patch(AT address, T value)
 	{
@@ -103,9 +103,9 @@ namespace Memory
 	}
 
 	template<typename AT, typename Func>
-	inline void		InjectHook(AT address, Func hook, unsigned int nType)
+	inline void		InjectHook(AT address, Func hook, HookType type)
 	{
-		*(uint8_t*)address = nType == PATCH_JUMP ? 0xE9 : 0xE8;
+		*(uint8_t*)address = type == HookType::Jump ? 0xE9 : 0xE8;
 		InjectHook(address, hook);
 	}
 
@@ -141,6 +141,14 @@ namespace Memory
 
 	namespace DynBase
 	{
+		enum class HookType
+		{
+			Call,
+			Jump,
+		};
+
+		using Memory::DynBaseAddress;
+
 		template<typename T, typename AT>
 		inline void		Patch(AT address, T value)
 		{
@@ -173,16 +181,16 @@ namespace Memory
 			Memory::ReadOffsetValue<extraBytesAfterOffset>(DynBaseAddress(address), var);
 		}
 
-		template<typename AT, typename HT>
-		inline void		InjectHook(AT address, HT hook)
+		template<typename AT, typename Func>
+		inline void		InjectHook(AT address, Func hook)
 		{
 			Memory::InjectHook(DynBaseAddress(address), hook);
 		}
 
-		template<typename AT, typename HT>
-		inline void		InjectHook(AT address, HT hook, unsigned int nType)
+		template<typename AT, typename Func>
+		inline void		InjectHook(AT address, Func hook, HookType type)
 		{
-			Memory::InjectHook(DynBaseAddress(address), hook, nType);
+			Memory::InjectHook(DynBaseAddress(address), hook, static_cast<Memory::HookType>(type));
 		}
 
 		template<typename Func, typename AT>
@@ -213,6 +221,8 @@ namespace Memory
 
 	namespace VP
 	{
+		using Memory::DynBaseAddress;
+
 		template<typename T, typename AT>
 		inline void		Patch(AT address, T value)
 		{
@@ -258,8 +268,8 @@ namespace Memory
 			Memory::ReadOffsetValue<extraBytesAfterOffset>(address, var);
 		}
 
-		template<typename AT, typename HT>
-		inline void		InjectHook(AT address, HT hook)
+		template<typename AT, typename Func>
+		inline void		InjectHook(AT address, Func hook)
 		{
 			DWORD		dwProtect;
 
@@ -268,13 +278,13 @@ namespace Memory
 			VirtualProtect((void*)((DWORD_PTR)address + 1), 4, dwProtect, &dwProtect);
 		}
 
-		template<typename AT, typename HT>
-		inline void		InjectHook(AT address, HT hook, unsigned int nType)
+		template<typename AT, typename Func>
+		inline void		InjectHook(AT address, Func hook, HookType type)
 		{
 			DWORD		dwProtect;
 
 			VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::InjectHook( address, hook, nType );
+			Memory::InjectHook( address, hook, type );
 			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
 		}
 
@@ -305,6 +315,8 @@ namespace Memory
 
 		namespace DynBase
 		{
+			using Memory::DynBaseAddress;
+
 			template<typename T, typename AT>
 			inline void		Patch(AT address, T value)
 			{
@@ -337,16 +349,16 @@ namespace Memory
 				VP::ReadOffsetValue<extraBytesAfterOffset>(DynBaseAddress(address), var);
 			}
 
-			template<typename AT, typename HT>
-			inline void		InjectHook(AT address, HT hook)
+			template<typename AT, typename Func>
+			inline void		InjectHook(AT address, Func hook)
 			{
 				VP::InjectHook(DynBaseAddress(address), hook);
 			}
 
-			template<typename AT, typename HT>
-			inline void		InjectHook(AT address, HT hook, unsigned int nType)
+			template<typename AT, typename Func>
+			inline void		InjectHook(AT address, Func hook, HookType type)
 			{
-				VP::InjectHook(DynBaseAddress(address), hook, nType);
+				VP::InjectHook(DynBaseAddress(address), hook, type);
 			}
 
 			template<typename Func, typename AT>
