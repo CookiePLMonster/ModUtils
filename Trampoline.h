@@ -126,8 +126,11 @@ private:
 
 	static void* FindAndAllocateMem( const uintptr_t addr, size_t& size )
 	{
-		// We need to start searching from 0 as in some cases, the place we want to allocate might be BEHIND US.
-		uintptr_t curAddr = 0;
+		// Determine the start point: 2GB before 'addr' or 0, whichever is larger.
+		// In some cases we can only allocate behind us; for example, in x64 processes when
+		// .NET Runtime might reserves a huge memory in front of us up front.
+		const uintptr_t maxRelJump = (static_cast<uintptr_t>(2) * 1024 * 1024 * 1024) - 1; // -1 because signed value for forward jump.
+		uintptr_t curAddr = (addr > maxRelJump) ? (addr - maxRelJump) : 0;
 
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo( &systemInfo );
