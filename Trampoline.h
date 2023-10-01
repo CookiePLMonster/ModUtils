@@ -150,6 +150,16 @@ private:
 				uintptr_t alignedAddr = uintptr_t(MemoryInf.BaseAddress);
 				alignedAddr = (alignedAddr + granularity - 1) & ~uintptr_t(granularity - 1);
 
+				// We need to check both the start and the end of the region here.
+				// More specifically, for addresses after `addr`, we should check the 
+				// beginning of the region, and for addresses before `addr`, we should
+				// check the end of the region.
+
+				// This is because it's theoretically possible that the region is:
+				// - Below `addr`
+				// - Starts further away than `-2GiB`
+				// - Ends closer than `2GiB`
+				// And vice-versa for regions above `addr`.
 				uintptr_t alignedAddrEnd = uintptr_t(uintptr_t(MemoryInf.BaseAddress) + MemoryInf.RegionSize) - size;
 				alignedAddrEnd = RoundDown(alignedAddrEnd, granularity);
 
