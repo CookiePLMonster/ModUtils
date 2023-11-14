@@ -72,7 +72,14 @@ static void ReplaceFunction(void** funcPtr)
 
 static bool PatchIAT()
 {
-	const DWORD_PTR instance = reinterpret_cast<DWORD_PTR>(GetModuleHandle(nullptr));
+	DWORD_PTR instance;
+#ifdef HOOKED_MODULE
+	instance = reinterpret_cast<DWORD_PTR>(GetModuleHandle(TEXT(HOOKED_MODULE)));
+	if (instance == 0)
+#endif
+	{
+		instance = reinterpret_cast<DWORD_PTR>(GetModuleHandle(nullptr));
+	}
 	const PIMAGE_NT_HEADERS ntHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(instance + reinterpret_cast<PIMAGE_DOS_HEADER>(instance)->e_lfanew);
 
 	// Find IAT
@@ -106,7 +113,7 @@ static bool PatchIAT()
 					if ( pFunctions[j] == HOOKED_FUNCTION )
 					{
 						ReplaceFunction(&pFunctions[j]);
-						return true;					
+						return true;
 					}
 				}
 			}
