@@ -35,7 +35,7 @@ namespace hook
 		static void count(bool countMatches) { if (!countMatches) { throw txn_exception{}; } }
 	};
 #else
-	struct exception_err_policy
+	struct exception_err_policy : public assert_err_policy
 	{
 	};
 #endif
