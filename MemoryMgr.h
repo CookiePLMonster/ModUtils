@@ -22,8 +22,9 @@
 #include <cassert>
 
 #ifndef _MEMORY_NO_CRT
+#include <algorithm>
 #include <initializer_list>
-#include <iterator>
+#include <utility>
 #endif
 
 namespace Memory
@@ -58,7 +59,7 @@ namespace Memory
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		uint8_t* addr = reinterpret_cast<uint8_t*>(address);
-		std::copy( list.begin(), list.end(), stdext::make_checked_array_iterator(addr, list.size()) );
+		std::copy( list.begin(), list.end(), addr );
 	}
 #endif
 
@@ -132,7 +133,7 @@ namespace Memory
 	inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 	{
 		const uint8_t* mem = reinterpret_cast<const uint8_t*>(address);
-		return std::equal( val.begin(), val.end(), stdext::make_checked_array_iterator(mem, val.size()) );
+		return std::equal( val.begin(), val.end(), mem );
 	}
 #endif
 
