@@ -122,7 +122,7 @@ namespace Memory
 		return reinterpret_cast<void*>( addr + offset );
 	}
 
-	inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+	constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)
 	{
 		ReadCall(address, func);
 		InjectHook(address, hook);
@@ -210,7 +210,7 @@ namespace Memory
 			return Memory::ReadCallFrom(DynBaseAddress(address), offset);
 		}
 
-		inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+		constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)
 		{
 			Memory::InterceptCall(DynBaseAddress(address), func, hook);
 		};
@@ -310,7 +310,7 @@ namespace Memory
 			return Memory::ReadCallFrom(address, offset);
 		}
 
-		inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+		constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)
 		{
 			DWORD		dwProtect;
 
@@ -392,7 +392,7 @@ namespace Memory
 				Memory::ReadCallFrom(DynBaseAddress(address), offset);
 			}
 
-			inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+			constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)
 			{
 				VP::InterceptCall(DynBaseAddress(address), func, hook);
 			};
