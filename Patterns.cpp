@@ -118,6 +118,20 @@ public:
 
 		m_begin = module + ntHeader->OptionalHeader.BaseOfCode;
 		m_end = m_begin + ntHeader->OptionalHeader.SizeOfCode;
+
+		// Executables with DRM bypassed may lie in their SizeOfCode and underreport severely
+		// We can somewhat detect this by checking if the code entry point is past
+		// these boundaries. It's not perfect, but it's safe.
+		const uintptr_t entryPoint = module + ntHeader->OptionalHeader.AddressOfEntryPoint;
+		if (entryPoint >= m_begin && entryPoint < m_end)
+		{
+			return;
+		}
+
+		// Alternate heuristics - scan the entire executable, minus headers
+		const uintptr_t sizeOfHeaders = ntHeader->OptionalHeader.SizeOfHeaders;
+		m_begin = module + sizeOfHeaders;
+		m_end = module + (ntHeader->OptionalHeader.SizeOfImage - sizeOfHeaders);
 	}
 
 	executable_meta(uintptr_t begin, uintptr_t end)
