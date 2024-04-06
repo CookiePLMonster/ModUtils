@@ -61,9 +61,9 @@ namespace Memory
 
 			if ( *bVer == -1 )
 			{
-				if (*(uint32_t*)0x5C1E75 == 0xB85548EC) *bVer = 0;
-				else if (*(uint32_t*)0x5C2135 == 0xB85548EC) *bVer = 1;
-				else if (*(uint32_t*)0x5C6FD5 == 0xB85548EC) *bVer = 2;
+				if (*(uint32_t*)DynBaseAddress(0x5C1E75) == 0xB85548EC) *bVer = 0;
+				else if (*(uint32_t*)DynBaseAddress(0x5C2135) == 0xB85548EC) *bVer = 1;
+				else if (*(uint32_t*)DynBaseAddress(0x5C6FD5) == 0xB85548EC) *bVer = 2;
 			}
 		}
 
@@ -75,9 +75,9 @@ namespace Memory
 
 			if ( *bVer == -1 )
 			{
-				if (*(uint32_t*)0x667BF5 == 0xB85548EC) *bVer = 0;
-				else if (*(uint32_t*)0x667C45 == 0xB85548EC) *bVer = 1;
-				else if (*(uint32_t*)0x666BA5 == 0xB85548EC) *bVer = 2;
+				if (*(uint32_t*)DynBaseAddress(0x667BF5) == 0xB85548EC) *bVer = 0;
+				else if (*(uint32_t*)DynBaseAddress(0x667C45) == 0xB85548EC) *bVer = 1;
+				else if (*(uint32_t*)DynBaseAddress(0x666BA5) == 0xB85548EC) *bVer = 2;
 			}
 		}
 
@@ -352,17 +352,17 @@ namespace Memory
 #ifdef assert
 				assert(address11);
 #endif
-				return address11;
+				return DynBaseAddress(address11);
 			case 2:
 #ifdef assert
 				assert(addressSteam);
 #endif
-				return addressSteam;
+				return DynBaseAddress(addressSteam);
 			default:
 #ifdef assert
 				assert(address10);
 #endif
-				return address10;
+				return DynBaseAddress(address10);
 			}
 		}
 
