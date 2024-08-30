@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <vector>
+#include <string>
 #include <string_view>
 
 #if defined(_CPPUNWIND) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
