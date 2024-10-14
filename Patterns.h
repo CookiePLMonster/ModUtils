@@ -211,14 +211,14 @@ namespace hook
 		}
 
 		template <typename Pred>
-		inline Pred for_each_result(Pred&& pred)
+		inline Pred for_each_result(Pred pred)
 		{
 			EnsureMatches(UINT32_MAX);
-			for ( auto it : m_matches )
+			for (auto match : m_matches)
 			{
-				std::forward<Pred>(pred)(it);
+				pred(match);
 			}
-			return std::forward<Pred>(pred);
+			return pred;
 		}
 
 	public:
