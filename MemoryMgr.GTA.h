@@ -373,7 +373,7 @@ namespace Memory
 
 #if defined _GTA_III || defined _GTA_VC
 
-template<typename T>
+template<typename T = uintptr_t>
 inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t addressSteam)
 {
 	return T(Memory::internal::AddressByVersion( address10, address11, addressSteam ));
@@ -381,31 +381,31 @@ inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t ad
 
 #elif defined _GTA_SA
 
-template<typename T>
+template<typename T = uintptr_t>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam)
 {
 	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), Memory::PatternAndOffset(std::string_view()) ));
 }
 
-template<typename T>
+template<typename T = uintptr_t>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::AddrVariant address11, Memory::AddrVariant addressSteam, Memory::PatternAndOffset patternNewExes)
 {
 	return T(Memory::internal::AddressByVersion( std::move(address10), std::move(address11), std::move(addressSteam), std::move(patternNewExes) ));
 }
 
-template<typename T>
+template<typename T = uintptr_t>
 inline T AddressByVersion(Memory::AddrVariant address10, Memory::PatternAndOffset patternNewExes)
 {
 	return T(Memory::internal::AddressByVersion( std::move(address10), 0, 0, std::move(patternNewExes) ));
 }
 
-template<typename T>
+template<typename T = uintptr_t>
 inline T AddressByRegion_10(uintptr_t address10)
 {
 	return T(Memory::internal::AddressByRegion_10(address10));
 }
 
-template<typename T>
+template<typename T = uintptr_t>
 inline T AddressByRegion_11(uintptr_t address11)
 {
 	return T(Memory::internal::AddressByRegion_11(address11));
