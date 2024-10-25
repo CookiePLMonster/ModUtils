@@ -16,7 +16,7 @@
 #ifndef _MEMORY_DECLS_ONLY
 
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
 
 #include <cstdint>
 #include <cassert>
