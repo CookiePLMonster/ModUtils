@@ -390,7 +390,7 @@ namespace Memory
 			template<typename AT>
 			inline void*	ReadCallFrom(AT address, ptrdiff_t offset = 0)
 			{
-				Memory::ReadCallFrom(DynBaseAddress(address), offset);
+				return Memory::ReadCallFrom(DynBaseAddress(address), offset);
 			}
 
 			constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)
