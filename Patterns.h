@@ -207,7 +207,7 @@ namespace hook
 		template<typename T = void>
 		inline auto get_first(ptrdiff_t offset = 0)
 		{
-			return get_one().get<T>(offset);
+			return get_one().template get<T>(offset);
 		}
 
 		template <typename Pred>
