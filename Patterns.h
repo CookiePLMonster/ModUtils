@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-#if defined(_CPPUNWIND) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
+#if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
 #define PATTERNS_ENABLE_EXCEPTIONS
 #endif
 
