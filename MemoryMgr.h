@@ -6,9 +6,15 @@
 
 #define WRAPPER __declspec(naked)
 #define DEPRECATED __declspec(deprecated)
+#define WRAPARG(a) ((int)a)
+
+#ifdef _MSC_VER
 #define EAXJMP(a) { _asm mov eax, a _asm jmp eax }
 #define VARJMP(a) { _asm jmp a }
-#define WRAPARG(a) ((int)a)
+#elif defined(__GNUC__) || defined(__clang__)
+#define EAXJMP(a) { __asm__ volatile("mov eax, %0\n" "jmp eax" :: "i" (a)); }
+#define VARJMP(a) { __asm__ volatile("jmp %0" :: "m" (a)); }
+#endif
 
 #define NOVMT __declspec(novtable)
 #define SETVMT(a) *((uintptr_t*)this) = (uintptr_t)a
