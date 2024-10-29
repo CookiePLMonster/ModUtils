@@ -16,7 +16,12 @@
 #define VARJMP(a) { __asm__ volatile("jmp %0" :: "m" (a)); }
 #endif
 
+#ifdef _MSC_VER
 #define NOVMT __declspec(novtable)
+#else
+#define NOVMT
+#endif
+
 #define SETVMT(a) *((uintptr_t*)this) = (uintptr_t)a
 
 #ifndef _MEMORY_DECLS_ONLY
