@@ -6,17 +6,28 @@
 
 #define WRAPPER __declspec(naked)
 #define DEPRECATED __declspec(deprecated)
-#define EAXJMP(a) { _asm mov eax, a _asm jmp eax }
-#define VARJMP(a) { _asm jmp a }
 #define WRAPARG(a) ((int)a)
 
+#ifdef _MSC_VER
+#define EAXJMP(a) { _asm mov eax, a _asm jmp eax }
+#define VARJMP(a) { _asm jmp a }
+#elif defined(__GNUC__) || defined(__clang__)
+#define EAXJMP(a) { __asm__ volatile("mov eax, %0\n" "jmp eax" :: "i" (a)); }
+#define VARJMP(a) { __asm__ volatile("jmp %0" :: "m" (a)); }
+#endif
+
+#ifdef _MSC_VER
 #define NOVMT __declspec(novtable)
+#else
+#define NOVMT
+#endif
+
 #define SETVMT(a) *((uintptr_t*)this) = (uintptr_t)a
 
 #ifndef _MEMORY_DECLS_ONLY
 
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
 
 #include <cstdint>
 #include <cassert>
@@ -390,7 +401,7 @@ namespace Memory
 			template<typename AT>
 			inline void*	ReadCallFrom(AT address, ptrdiff_t offset = 0)
 			{
-				Memory::ReadCallFrom(DynBaseAddress(address), offset);
+				return Memory::ReadCallFrom(DynBaseAddress(address), offset);
 			}
 
 			constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)

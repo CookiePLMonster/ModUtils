@@ -8,11 +8,12 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <string_view>
 
-#if defined(_CPPUNWIND) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
+#if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(PATTERNS_SUPPRESS_EXCEPTIONS)
 #define PATTERNS_ENABLE_EXCEPTIONS
 #endif
 
@@ -207,7 +208,7 @@ namespace hook
 		template<typename T = void>
 		inline auto get_first(ptrdiff_t offset = 0)
 		{
-			return get_one().get<T>(offset);
+			return get_one().template get<T>(offset);
 		}
 
 		template <typename Pred>

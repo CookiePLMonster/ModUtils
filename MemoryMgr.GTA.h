@@ -2,6 +2,7 @@
 
 #include "MemoryMgr.h"
 
+#include <type_traits>
 #include <variant>
 #include "Patterns.h"
 
@@ -20,7 +21,7 @@ namespace Memory
 		ptrdiff_t offset;
 	};
 
-	using AddrVariant = std::variant<uintptr_t, PatternAndOffset>;
+	using AddrVariant = std::variant<intptr_t, PatternAndOffset>;
 
 	namespace internal
 	{
@@ -268,7 +269,7 @@ namespace Memory
 				if ( auto pao = std::get_if<PatternAndOffset>(&address10) ) return HandlePattern( *pao );
 				else
 				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&address10);
+					const uintptr_t addr = std::make_unsigned_t<intptr_t>(*std::get_if<intptr_t>(&address10));
 		#ifdef assert
 					assert(addr);
 		#endif
@@ -280,7 +281,7 @@ namespace Memory
 				if ( auto pao = std::get_if<PatternAndOffset>(&address11) ) return HandlePattern( *pao );
 				else
 				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&address11);
+					const uintptr_t addr = std::make_unsigned_t<intptr_t>(*std::get_if<intptr_t>(&address11));
 		#ifdef assert
 					assert(addr);
 		#endif
@@ -296,7 +297,7 @@ namespace Memory
 				if ( auto pao = std::get_if<PatternAndOffset>(&addressSteam) ) return HandlePattern( *pao );
 				else
 				{
-					const uintptr_t addr = *std::get_if<uintptr_t>(&addressSteam);
+					const uintptr_t addr = std::make_unsigned_t<intptr_t>(*std::get_if<intptr_t>(&addressSteam));
 		#ifdef assert
 					assert(addr);
 		#endif
