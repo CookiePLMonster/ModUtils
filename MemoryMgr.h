@@ -243,6 +243,12 @@ namespace Memory
 
 	namespace VP
 	{
+		enum class HookType
+		{
+			Call,
+			Jump,
+		};
+
 		using Memory::DynBaseAddress;
 
 		template<typename T, typename AT>
@@ -306,7 +312,7 @@ namespace Memory
 			DWORD		dwProtect;
 
 			VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::InjectHook( address, hook, type );
+			Memory::InjectHook( address, hook, static_cast<Memory::HookType>(type) );
 			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
 		}
 
@@ -346,6 +352,12 @@ namespace Memory
 
 		namespace DynBase
 		{
+			enum class HookType
+			{
+				Call,
+				Jump,
+			};
+
 			using Memory::DynBaseAddress;
 
 			template<typename T, typename AT>
@@ -389,7 +401,7 @@ namespace Memory
 			template<typename AT, typename Func>
 			inline void		InjectHook(AT address, Func hook, HookType type)
 			{
-				VP::InjectHook(DynBaseAddress(address), hook, type);
+				VP::InjectHook(DynBaseAddress(address), hook, static_cast<VP::HookType>(type));
 			}
 
 			template<typename Func, typename AT>
