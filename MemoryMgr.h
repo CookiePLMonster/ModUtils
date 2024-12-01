@@ -11,9 +11,9 @@
 #ifdef _MSC_VER
 #define EAXJMP(a) { _asm mov eax, a _asm jmp eax }
 #define VARJMP(a) { _asm jmp a }
-#elif defined(__GNUC__) || defined(__clang__)
-#define EAXJMP(a) { __asm__ volatile("mov eax, %0\n" "jmp eax" :: "i" (a)); }
-#define VARJMP(a) { __asm__ volatile("jmp %0" :: "m" (a)); }
+#else
+#define EAXJMP(a) __asm__ volatile("mov eax, %0\n" "jmp eax" :: "i" (a));
+#define VARJMP(a) __asm__ volatile("jmp %0" :: "m" (a));
 #endif
 
 #ifdef _MSC_VER
