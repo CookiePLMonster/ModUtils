@@ -19,6 +19,33 @@
 
 namespace hook
 {
+	// This is inspired by the char_traits<unsigned char> implementation from nlohmann's json library
+	struct pattern_traits : std::char_traits<char>
+	{
+		using char_type = uint8_t;
+
+		// Redefine move function
+		static char_type* move(char_type* dest, const char_type* src, std::size_t count) noexcept
+		{
+			return static_cast<char_type*>(std::memmove(dest, src, count));
+		}
+
+		// Redefine assign function
+		static void assign(char_type& c1, const char_type& c2) noexcept
+		{
+			c1 = c2;
+		}
+
+		// Redefine copy function
+		static char_type* copy(char_type* dest, const char_type* src, std::size_t count) noexcept
+		{
+			return static_cast<char_type*>(std::memcpy(dest, src, count));
+		}
+	};
+
+	using pattern_string = std::basic_string<uint8_t, pattern_traits>;
+	using pattern_string_view = std::basic_string_view<uint8_t, pattern_traits>;
+
 	struct assert_err_policy
 	{
 		static void count([[maybe_unused]] bool countMatches) { assert(countMatches); }
@@ -73,8 +100,8 @@ namespace hook
 		class basic_pattern_impl
 		{
 		protected:
-			std::basic_string<uint8_t> m_bytes;
-			std::basic_string<uint8_t> m_mask;
+			pattern_string m_bytes;
+			pattern_string m_mask;
 
 #if PATTERNS_USE_HINTS
 			uint64_t m_hash = 0;
@@ -125,7 +152,7 @@ namespace hook
 			}
 
 			// Pretransformed patterns
-			inline basic_pattern_impl(std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+			inline basic_pattern_impl(pattern_string_view bytes, pattern_string_view mask)
 				: basic_pattern_impl(get_process_base())
 			{
 				assert( bytes.length() == mask.length() );
@@ -133,7 +160,7 @@ namespace hook
 				m_mask = std::move(mask);
 			}
 
-			inline basic_pattern_impl(void* module, std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+			inline basic_pattern_impl(void* module, pattern_string_view bytes, pattern_string_view mask)
 				: basic_pattern_impl(reinterpret_cast<uintptr_t>(module))
 			{
 				assert( bytes.length() == mask.length() );
@@ -141,7 +168,7 @@ namespace hook
 				m_mask = std::move(mask);
 			}
 
-			inline basic_pattern_impl(uintptr_t begin, uintptr_t end, std::basic_string_view<uint8_t> bytes, std::basic_string_view<uint8_t> mask)
+			inline basic_pattern_impl(uintptr_t begin, uintptr_t end, pattern_string_view bytes, pattern_string_view mask)
 				: basic_pattern_impl(begin, end)
 			{
 				assert( bytes.length() == mask.length() );

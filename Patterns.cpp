@@ -64,7 +64,7 @@ static auto& getHints()
 }
 #endif
 
-static void TransformPattern(std::string_view pattern, std::basic_string<uint8_t>& data, std::basic_string<uint8_t>& mask)
+static void TransformPattern(std::string_view pattern, pattern_string& data, pattern_string& mask)
 {
 	uint8_t tempDigit = 0;
 	bool tempFlag = false;

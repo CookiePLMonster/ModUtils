@@ -66,7 +66,7 @@ static void ReplaceFunction(void** funcPtr)
 	VirtualProtect(funcPtr, sizeof(*funcPtr), PAGE_READWRITE, &dwProtect);
 	wrapped_function::origFunction = **reinterpret_cast<decltype(wrapped_function::origFunction)*>(funcPtr);
 
-	*funcPtr = wrapped_function::Hook;
+	*funcPtr = &wrapped_function::Hook;
 	VirtualProtect(funcPtr, sizeof(*funcPtr), dwProtect, &dwProtect);
 }
 
@@ -127,7 +127,7 @@ static bool PatchIAT_ByPointers()
 	using namespace Memory::VP;
 
 	wrapped_function::origFunction = HOOKED_FUNCTION;
-	memcpy(wrapped_function::origCode, wrapped_function::origFunction, sizeof(wrapped_function::origCode));
+	memcpy(wrapped_function::origCode, reinterpret_cast<void*>(wrapped_function::origFunction), sizeof(wrapped_function::origCode));
 
 #ifdef _WIN64
 	Trampoline* trampoline = Trampoline::MakeTrampoline(wrapped_function::origFunction);
