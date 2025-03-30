@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <string>
 #include <string_view>
