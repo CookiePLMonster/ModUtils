@@ -135,7 +135,7 @@ namespace Memory
 		return reinterpret_cast<void*>( addr + offset );
 	}
 
-	constexpr auto InterceptCall = [](auto address, auto&& func, auto&& hook)
+	inline auto InterceptCall = [](auto address, auto&& func, auto&& hook)
 	{
 		ReadCall(address, func);
 		InjectHook(address, hook);
