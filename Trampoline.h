@@ -126,7 +126,11 @@ private:
 
 	static void* FindAndAllocateMem( const uintptr_t addr, size_t& size )
 	{
-		uintptr_t curAddr = addr;
+		// Determine the start point: 2GB before 'addr' or 0, whichever is larger.
+		// In some cases we can only allocate behind us; for example, in x64 processes when
+		// .NET Runtime might reserves a huge memory in front of us up front.
+		const uintptr_t maxRelJump = (static_cast<uintptr_t>(2) * 1024 * 1024 * 1024) - 1; // -1 because signed value for forward jump.
+		uintptr_t curAddr = (addr > maxRelJump) ? (addr - maxRelJump) : 0;
 
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo( &systemInfo );
@@ -146,17 +150,42 @@ private:
 				uintptr_t alignedAddr = uintptr_t(MemoryInf.BaseAddress);
 				alignedAddr = (alignedAddr + granularity - 1) & ~uintptr_t(granularity - 1);
 
-				if ( !IsAddressFeasible( alignedAddr, addr ) ) break;
+				// We need to check both the start and the end of the region here.
+				// More specifically, for addresses after `addr`, we should check the 
+				// beginning of the region, and for addresses before `addr`, we should
+				// check the end of the region.
 
-				LPVOID mem = VirtualAlloc( reinterpret_cast<LPVOID>(alignedAddr), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
-				if ( mem != nullptr )
+				// This is because it's theoretically possible that the region is:
+				// - Below `addr`
+				// - Starts further away than `-2GiB`
+				// - Ends closer than `2GiB`
+				// And vice-versa for regions above `addr`.
+				uintptr_t alignedAddrEnd = uintptr_t(uintptr_t(MemoryInf.BaseAddress) + MemoryInf.RegionSize) - size;
+				alignedAddrEnd = RoundDown(alignedAddrEnd, granularity);
+
+				if (IsAddressFeasible(alignedAddr, addr)) 
 				{
-					return mem;
+					LPVOID mem = VirtualAlloc(reinterpret_cast<LPVOID>(alignedAddr), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+					if (mem != nullptr)
+						return mem;
+				}
+				else if (IsAddressFeasible(alignedAddrEnd, addr))
+				{
+					LPVOID mem = VirtualAlloc(reinterpret_cast<LPVOID>(alignedAddrEnd), size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+					if (mem != nullptr)
+						return mem;
 				}
 			}
 			curAddr += MemoryInf.RegionSize;
 		}
 		return nullptr;
+	}
+
+	static uintptr_t RoundDown( uintptr_t addr, DWORD granularity ) 
+	{
+		return addr >= 0 ? 
+			(addr / granularity) * granularity : 
+			((addr - granularity + 1) / granularity) * granularity;
 	}
 
 	static bool IsAddressFeasible( uintptr_t trampolineOffset, uintptr_t addr )
