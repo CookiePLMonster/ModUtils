@@ -1,10 +1,5 @@
 #pragma once
 
-#include <array>
-#include <tuple>
-#include <utility>
-#include <type_traits>
-
 // Helper macro to instantiate a set of templated variables/functions and a function hooking multiple places in code en masse.
 // This helper is meant to help improve compatibility with different modifications and/or application versions by easily lifting
 // assumptions about the similarity of patched call sites and/or variable instances.
@@ -38,6 +33,11 @@
 // 2. Specify a non-zero count as a template parameter of HookEach_*.
 // In both cases, each unique call then gets its own set of 'original' and 'replaced' instances.
 
+#include <array>
+#include <tuple>
+#include <utility>
+#include <type_traits>
+
 namespace hook_each::details
 {
 	template <typename T>
@@ -52,7 +52,7 @@ namespace hook_each::details
 
 #define HOOK_EACH_INIT_CTR(name, ctr, original, replaced) \
 	template<std::size_t Ctr, typename T, std::size_t N, typename Func, std::size_t... I> \
-	static void _HookEachImpl_##name(const std::array<T, N>& elems, Func&& f, std::index_sequence<I...>) \
+	static void hook_each_impl_##name(const std::array<T, N>& elems, Func&& f, std::index_sequence<I...>) \
 	{ \
 		if constexpr (hook_each::details::is_tuple_like<T>::value) \
 		{ \
@@ -69,7 +69,7 @@ namespace hook_each::details
 	template<std::size_t Ctr = ctr, typename T, std::size_t N, typename Func> \
 	static void HookEach_##name(const std::array<T, N>& elems, Func&& f) \
 	{ \
-		_HookEachImpl_##name<Ctr>(elems, std::forward<Func>(f), std::make_index_sequence<N>{}); \
+		hook_each_impl_##name<Ctr>(elems, std::forward<Func>(f), std::make_index_sequence<N>{}); \
 	}
 
 #define HOOK_EACH_INIT(name, original, replaced) HOOK_EACH_INIT_CTR(name, 0, original, replaced)
