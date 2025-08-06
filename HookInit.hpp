@@ -25,12 +25,12 @@
 #define STRINGIZE(s) STRINGIZE2(s)
 #define STRINGIZE2(s) #s
 
-extern void OnInitializeHook();
+extern void OnInitializeHook() noexcept;
 
 namespace HookInit
 {
 static std::once_flag hookFlag;
-static void ProcHook()
+static void ProcHook() noexcept
 {
 	std::call_once(hookFlag, OnInitializeHook);
 }
