@@ -1,7 +1,6 @@
 #pragma once
 
 // Switches:
-// _MEMORY_NO_CRT - don't include anything "complex" like ScopedUnprotect or memset
 // _MEMORY_DECLS_ONLY - don't include anything but macroes
 
 #define WRAPPER __declspec(naked)
@@ -33,11 +32,9 @@
 #include <cstdint>
 #include <cassert>
 
-#ifndef _MEMORY_NO_CRT
 #include <algorithm>
 #include <initializer_list>
 #include <utility>
-#endif
 
 namespace Memory
 {
@@ -65,7 +62,6 @@ namespace Memory
 		*(T*)address = value;
 	}
 
-#ifndef _MEMORY_NO_CRT
 	template<typename AT>
 	inline void		Patch(AT address, std::initializer_list<uint8_t> list )
 	{
@@ -73,20 +69,13 @@ namespace Memory
 		uint8_t* addr = reinterpret_cast<uint8_t*>(address);
 		std::copy( list.begin(), list.end(), addr );
 	}
-#endif
 
 	template<typename AT>
 	inline void		Nop(AT address, size_t count)
-#ifndef _MEMORY_NO_CRT
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		memset((void*)address, 0x90, count);
 	}
-#else
-	{ do {
-		*(uint8_t*)address++ = 0x90;
-	} while ( --count != 0 ); }
-#endif
 
 	template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
 	inline void		WriteOffsetValue(AT address, Var var)
@@ -141,13 +130,11 @@ namespace Memory
 		InjectHook(address, hook);
 	};
 
-#ifndef _MEMORY_NO_CRT
 	inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 	{
 		const uint8_t* mem = reinterpret_cast<const uint8_t*>(address);
 		return std::equal( val.begin(), val.end(), mem );
 	}
-#endif
 
 	template<typename AT>
 	inline AT Verify(AT address, uintptr_t expected)
@@ -173,13 +160,11 @@ namespace Memory
 			Memory::Patch(DynBaseAddress(address), value);
 		}
 
-#ifndef _MEMORY_NO_CRT
 		template<typename AT>
 		inline void		Patch(AT address, std::initializer_list<uint8_t> list )
 		{
 			Memory::Patch(DynBaseAddress(address), std::move(list));
 		}
-#endif
 
 		template<typename AT>
 		inline void		Nop(AT address, size_t count)
@@ -228,7 +213,6 @@ namespace Memory
 			Memory::InterceptCall(DynBaseAddress(address), func, hook);
 		};
 
-#ifndef _MEMORY_NO_CRT
 		inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 		{
 			return Memory::MemEquals(DynBaseAddress(address), std::move(val));
@@ -239,7 +223,6 @@ namespace Memory
 		{
 			return Memory::Verify(address, DynBaseAddress(expected));
 		}
-#endif
 	};
 
 	namespace VP
@@ -261,7 +244,6 @@ namespace Memory
 			VirtualProtect((void*)address, sizeof(T), dwProtect, &dwProtect);
 		}
 
-#ifndef _MEMORY_NO_CRT
 		template<typename AT>
 		inline void		Patch(AT address, std::initializer_list<uint8_t> list )
 		{
@@ -270,7 +252,6 @@ namespace Memory
 			Memory::Patch(address, std::move(list));
 			VirtualProtect((void*)address, list.size(), dwProtect, &dwProtect);
 		}
-#endif
 
 		template<typename AT>
 		inline void		Nop(AT address, size_t count)
@@ -338,12 +319,10 @@ namespace Memory
 			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
 		};
 
-#ifndef _MEMORY_NO_CRT
 		inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 		{
 			return Memory::MemEquals(address, std::move(val));
 		}
-#endif
 
 		template<typename AT>
 		inline AT Verify(AT address, uintptr_t expected)
@@ -367,13 +346,11 @@ namespace Memory
 				VP::Patch(DynBaseAddress(address), value);
 			}
 
-#ifndef _MEMORY_NO_CRT
 			template<typename AT>
 			inline void		Patch(AT address, std::initializer_list<uint8_t> list )
 			{
 				VP::Patch(DynBaseAddress(address), std::move(list));
 			}
-#endif
 
 			template<typename AT>
 			inline void		Nop(AT address, size_t count)
@@ -422,12 +399,10 @@ namespace Memory
 				VP::InterceptCall(DynBaseAddress(address), func, hook);
 			};
 
-#ifndef _MEMORY_NO_CRT
 			inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 			{
 				return Memory::MemEquals(DynBaseAddress(address), std::move(val));
 			}
-#endif
 
 			template<typename AT>
 			inline AT Verify(AT address, uintptr_t expected)
