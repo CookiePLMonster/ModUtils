@@ -70,6 +70,13 @@ namespace Memory
 		std::copy( list.begin(), list.end(), addr );
 	}
 
+	template<typename Var, typename AT>
+	inline void		Read(AT address, Var& var)
+	{
+		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
+		var = *(Var*)address;
+	}
+
 	template<typename AT>
 	inline void		Nop(AT address, size_t count)
 	{
@@ -77,25 +84,51 @@ namespace Memory
 		memset((void*)address, 0x90, count);
 	}
 
-	template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-	inline void		WriteOffsetValue(AT address, Var var)
+	template<typename Var, typename AT>
+	inline void		WriteOffsetValue(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		intptr_t dstAddr = (intptr_t)address;
 		intptr_t srcAddr;
 		memcpy( &srcAddr, std::addressof(var), sizeof(srcAddr) );
-		*(int32_t*)dstAddr = static_cast<int32_t>(srcAddr - dstAddr - (4 + extraBytesAfterOffset));
+		*(int32_t*)dstAddr = static_cast<int32_t>(srcAddr - dstAddr - (4 + bytesAfterDisplacement));
 	}
 
-	template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-	inline void		ReadOffsetValue(AT address, Var& var)
+	template<typename Var, typename AT>
+	inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
 		intptr_t srcAddr = (intptr_t)address;
-		intptr_t dstAddr = srcAddr + (4 + extraBytesAfterOffset) + *(int32_t*)srcAddr;
+		intptr_t dstAddr = srcAddr + (4 + bytesAfterDisplacement) + *(int32_t*)srcAddr;
 		var = {};
 		memcpy( std::addressof(var), &dstAddr, sizeof(dstAddr) );
 	}
+
+	template<typename Var, typename AT>
+	inline void		WriteMemDisplacement(AT address, Var var, [[maybe_unused]] ptrdiff_t bytesAfterDisplacement = 0)
+	{
+#ifdef _WIN64
+		WriteOffsetValue(address, var, bytesAfterDisplacement);
+#else
+		Patch(address, var);
+#endif
+	}
+
+	template<typename Var, typename AT>
+	inline void		ReadMemDisplacement(AT address, Var& var, [[maybe_unused]] ptrdiff_t bytesAfterDisplacement = 0)
+	{
+#ifdef _WIN64
+		ReadOffsetValue(address, var, bytesAfterDisplacement);
+#else
+		Read(address, var);
+#endif
+	}
+
+	inline auto InterceptMemDisplacement = [](auto address, auto&& orig, auto&& var, ptrdiff_t bytesAfterDisplacement = 0)
+	{
+		ReadMemDisplacement(address, orig, bytesAfterDisplacement);
+		WriteMemDisplacement(address, var, bytesAfterDisplacement);
+	};
 
 	template<typename AT, typename Func>
 	inline void		InjectHook(AT address, Func hook)
@@ -166,23 +199,46 @@ namespace Memory
 			Memory::Patch(DynBaseAddress(address), std::move(list));
 		}
 
+		template<typename Var, typename AT>
+		inline void		Read(AT address, Var& var)
+		{
+			Memory::Read(DynBaseAddress(address), var);
+		}
+
 		template<typename AT>
 		inline void		Nop(AT address, size_t count)
 		{
 			Memory::Nop(DynBaseAddress(address), count);
 		}
 
-		template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-		inline void		WriteOffsetValue(AT address, Var var)
+		template<typename Var, typename AT>
+		inline void		WriteOffsetValue(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
 		{
-			Memory::WriteOffsetValue<extraBytesAfterOffset>(DynBaseAddress(address), var);
+			Memory::WriteOffsetValue(DynBaseAddress(address), var, bytesAfterDisplacement);
 		}
 
-		template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-		inline void		ReadOffsetValue(AT address, Var& var)
+		template< typename Var, typename AT>
+		inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
 		{
-			Memory::ReadOffsetValue<extraBytesAfterOffset>(DynBaseAddress(address), var);
+			Memory::ReadOffsetValue(DynBaseAddress(address), var, bytesAfterDisplacement);
 		}
+
+		template<typename Var, typename AT>
+		inline void		WriteMemDisplacement(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
+		{
+			Memory::WriteMemDisplacement(DynBaseAddress(address), var, bytesAfterDisplacement);
+		}
+
+		template<typename Var, typename AT>
+		inline void		ReadMemDisplacement(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
+		{
+			Memory::ReadMemDisplacement(DynBaseAddress(address), var, bytesAfterDisplacement);
+		}
+
+		inline auto InterceptMemDisplacement = [](auto address, auto&& orig, auto&& var, ptrdiff_t bytesAfterDisplacement = 0)
+		{
+			Memory::InterceptMemDisplacement(DynBaseAddress(address), orig, var, bytesAfterDisplacement);
+		};
 
 		template<typename AT, typename Func>
 		inline void		InjectHook(AT address, Func hook)
@@ -253,6 +309,12 @@ namespace Memory
 			VirtualProtect((void*)address, list.size(), dwProtect, &dwProtect);
 		}
 
+		template<typename Var, typename AT>
+		inline void		Read(AT address, Var& var)
+		{
+			Memory::Read(address, var);
+		}
+
 		template<typename AT>
 		inline void		Nop(AT address, size_t count)
 		{
@@ -262,21 +324,46 @@ namespace Memory
 			VirtualProtect((void*)address, count, dwProtect, &dwProtect);
 		}
 
-		template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-		inline void		WriteOffsetValue(AT address, Var var)
+		template<typename Var, typename AT>
+		inline void		WriteOffsetValue(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
 		{
 			DWORD		dwProtect;
 
 			VirtualProtect((void*)address, 4, PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::WriteOffsetValue<extraBytesAfterOffset>(address, var);
+			Memory::WriteOffsetValue(address, var, bytesAfterDisplacement);
 			VirtualProtect((void*)address, 4, dwProtect, &dwProtect);
 		}
 
-		template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-		inline void		ReadOffsetValue(AT address, Var& var)
+		template<typename Var, typename AT>
+		inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
 		{
-			Memory::ReadOffsetValue<extraBytesAfterOffset>(address, var);
+			Memory::ReadOffsetValue(address, var, bytesAfterDisplacement);
 		}
+
+		template<typename Var, typename AT>
+		inline void		WriteMemDisplacement(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
+		{
+			DWORD		dwProtect;
+
+			VirtualProtect((void*)address, 4, PAGE_EXECUTE_READWRITE, &dwProtect);
+			Memory::WriteMemDisplacement(address, var, bytesAfterDisplacement);
+			VirtualProtect((void*)address, 4, dwProtect, &dwProtect);
+		}
+
+		template<typename Var, typename AT>
+		inline void		ReadMemDisplacement(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
+		{
+			Memory::ReadMemDisplacement(address, var, bytesAfterDisplacement);
+		}
+
+		inline auto InterceptMemDisplacement = [](auto address, auto&& orig, auto&& var, ptrdiff_t bytesAfterDisplacement = 0)
+		{
+			DWORD		dwProtect;
+
+			VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect);
+			Memory::InterceptMemDisplacement(address, orig, var, bytesAfterDisplacement);
+			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
+		};
 
 		template<typename AT, typename Func>
 		inline void		InjectHook(AT address, Func hook)
@@ -352,23 +439,46 @@ namespace Memory
 				VP::Patch(DynBaseAddress(address), std::move(list));
 			}
 
+			template<typename Var, typename AT>
+			inline void		Read(AT address, Var& var)
+			{
+				VP::Read(DynBaseAddress(address), var);
+			}
+
 			template<typename AT>
 			inline void		Nop(AT address, size_t count)
 			{
 				VP::Nop(DynBaseAddress(address), count);
 			}
 
-			template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-			inline void		WriteOffsetValue(AT address, Var var)
+			template<typename Var, typename AT>
+			inline void		WriteOffsetValue(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
 			{
-				VP::WriteOffsetValue<extraBytesAfterOffset>(DynBaseAddress(address), var);
+				VP::WriteOffsetValue<bytesAfterDisplacement>(DynBaseAddress(address), var, bytesAfterDisplacement);
 			}
 
-			template<ptrdiff_t extraBytesAfterOffset = 0, typename Var, typename AT>
-			inline void		ReadOffsetValue(AT address, Var& var)
+			template<typename Var, typename AT>
+			inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
 			{
-				VP::ReadOffsetValue<extraBytesAfterOffset>(DynBaseAddress(address), var);
+				VP::ReadOffsetValue<bytesAfterDisplacement>(DynBaseAddress(address), var, bytesAfterDisplacement);
 			}
+
+			template<typename Var, typename AT>
+			inline void		WriteMemDisplacement(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
+			{
+				VP::WriteMemDisplacement(DynBaseAddress(address), var, bytesAfterDisplacement);
+			}
+
+			template<typename Var, typename AT>
+			inline void		ReadMemDisplacement(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
+			{
+				VP::ReadMemDisplacement(DynBaseAddress(address), var, bytesAfterDisplacement);
+			}
+
+			inline auto InterceptMemDisplacement = [](auto address, auto&& orig, auto&& var, ptrdiff_t bytesAfterDisplacement = 0)
+			{
+				VP::InterceptMemDisplacement(DynBaseAddress(address), orig, var, bytesAfterDisplacement);
+			};
 
 			template<typename AT, typename Func>
 			inline void		InjectHook(AT address, Func hook)
