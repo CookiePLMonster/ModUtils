@@ -94,9 +94,21 @@ namespace hook
 		}
 	};
 
+	using scan_segments = std::vector<std::pair<intptr_t, intptr_t>>;
+
+	// Gets all module sections with a IMAGE_SCN_MEM_READ flag.
+	scan_segments get_all_readable_sections(void* module);
+
+	// Gets all module sections with a IMAGE_SCN_CNT_CODE flag.
+	// Some no-CD executables don't set this flag correctly, so use with caution.
+	scan_segments get_all_code_sections(void* module);
+
+	// Gets a section by name, if it exists. If multiple sections share the same name, they are all returned. Case sensitive.
+	scan_segments get_section_by_name(void* module, std::string_view name);
+
 	namespace details
 	{
-		ptrdiff_t get_process_base();
+		const scan_segments& get_default_scan_segments();
 
 		class basic_pattern_impl
 		{
@@ -109,11 +121,9 @@ namespace hook
 #endif
 
 			std::vector<pattern_match> m_matches;
+			scan_segments m_scanSegments;
 
 			bool m_matched = false;
-
-			uintptr_t m_rangeStart;
-			uintptr_t m_rangeEnd;
 
 		protected:
 			void Initialize(std::string_view pattern);
@@ -127,54 +137,28 @@ namespace hook
 				return m_matches[index];
 			}
 
-		private:
-			explicit basic_pattern_impl(uintptr_t begin, uintptr_t end = 0)
-				: m_rangeStart(begin), m_rangeEnd(end)
-			{
-			}
-
 		public:
 			explicit basic_pattern_impl(std::string_view pattern)
-				: basic_pattern_impl(get_process_base())
+				: basic_pattern_impl(get_default_scan_segments(), std::move(pattern))
 			{
-				Initialize(std::move(pattern));
 			}
 
-			inline basic_pattern_impl(void* module, std::string_view pattern)
-				: basic_pattern_impl(reinterpret_cast<uintptr_t>(module))
-			{
-				Initialize(std::move(pattern));
-			}
-
-			inline basic_pattern_impl(uintptr_t begin, uintptr_t end, std::string_view pattern)
-				: basic_pattern_impl(begin, end)
+			inline basic_pattern_impl(scan_segments segments, std::string_view pattern)
+				: m_scanSegments(std::move(segments))
 			{
 				Initialize(std::move(pattern));
 			}
 
 			// Pretransformed patterns
 			inline basic_pattern_impl(pattern_string_view bytes, pattern_string_view mask)
-				: basic_pattern_impl(get_process_base())
+				: basic_pattern_impl(get_default_scan_segments(), std::move(bytes), std::move(mask))
 			{
-				assert( bytes.length() == mask.length() );
-				m_bytes = std::move(bytes);
-				m_mask = std::move(mask);
 			}
 
-			inline basic_pattern_impl(void* module, pattern_string_view bytes, pattern_string_view mask)
-				: basic_pattern_impl(reinterpret_cast<uintptr_t>(module))
+			inline basic_pattern_impl(scan_segments segments, pattern_string_view bytes, pattern_string_view mask)
+				: m_bytes(std::move(bytes)), m_mask(std::move(mask)), m_scanSegments(std::move(segments))
 			{
-				assert( bytes.length() == mask.length() );
-				m_bytes = std::move(bytes);
-				m_mask = std::move(mask);
-			}
-
-			inline basic_pattern_impl(uintptr_t begin, uintptr_t end, pattern_string_view bytes, pattern_string_view mask)
-				: basic_pattern_impl(begin, end)
-			{
-				assert( bytes.length() == mask.length() );
-				m_bytes = std::move(bytes);
-				m_mask = std::move(mask);
+				assert( m_bytes.length() == m_mask.length() );
 			}
 
 		protected:
@@ -262,16 +246,6 @@ namespace hook
 
 	using pattern = basic_pattern<assert_err_policy>;
 
-	inline auto make_module_pattern(void* module, std::string_view bytes)
-	{
-		return pattern(module, std::move(bytes));
-	}
-
-	inline auto make_range_pattern(uintptr_t begin, uintptr_t end, std::string_view bytes)
-	{
-		return pattern(begin, end, std::move(bytes));
-	}
-
 	template<typename T = void>
 	inline auto get_pattern(std::string_view pattern_string, ptrdiff_t offset = 0)
 	{
@@ -283,20 +257,25 @@ namespace hook
 		return pattern(std::move(pattern_string)).get_one().get_uintptr(offset);
 	}
 
+	template<typename T = void>
+	inline auto get_pattern(scan_segments segments, std::string_view pattern_string, ptrdiff_t offset = 0)
+	{
+		return pattern(std::move(segments), std::move(pattern_string)).get_first<T>(offset);
+	}
+
+	inline auto get_pattern_uintptr(scan_segments segments, std::string_view pattern_string, ptrdiff_t offset = 0)
+	{
+		return pattern(std::move(segments), std::move(pattern_string)).get_one().get_uintptr(offset);
+	}
+
 	namespace txn
 	{
 		using pattern = hook::basic_pattern<exception_err_policy>;
 		using hook::pattern_match;
-
-		inline auto make_module_pattern(void* module, std::string_view bytes)
-		{
-			return pattern(module, std::move(bytes));
-		}
-
-		inline auto make_range_pattern(uintptr_t begin, uintptr_t end, std::string_view bytes)
-		{
-			return pattern(begin, end, std::move(bytes));
-		}
+		using hook::scan_segments;
+		using hook::get_all_readable_sections;
+		using hook::get_all_code_sections;
+		using hook::get_section_by_name;
 
 		template<typename T = void>
 		inline auto get_pattern(std::string_view pattern_string, ptrdiff_t offset = 0)
@@ -307,6 +286,17 @@ namespace hook
 		inline auto get_pattern_uintptr(std::string_view pattern_string, ptrdiff_t offset = 0)
 		{
 			return pattern(std::move(pattern_string)).get_one().get_uintptr(offset);
+		}
+
+		template<typename T = void>
+		inline auto get_pattern(scan_segments segments, std::string_view pattern_string, ptrdiff_t offset = 0)
+		{
+			return pattern(std::move(segments), std::move(pattern_string)).get_first<T>(offset);
+		}
+
+		inline auto get_pattern_uintptr(scan_segments segments, std::string_view pattern_string, ptrdiff_t offset = 0)
+		{
+			return pattern(std::move(segments), std::move(pattern_string)).get_one().get_uintptr(offset);
 		}
 	}
 }

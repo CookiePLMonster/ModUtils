@@ -49,12 +49,83 @@ typedef basic_fnv_1<fnv_prime, fnv_offset_basis> fnv_1;
 
 namespace hook
 {
-
-ptrdiff_t details::get_process_base()
+static scan_segments get_all_sections_with_flag_internal(void* module, uint32_t flag)
 {
-	return ptrdiff_t(GetModuleHandle(nullptr));
+	scan_segments result;
+
+	assert(module != nullptr);
+
+	const intptr_t moduleBase = reinterpret_cast<intptr_t>(module);
+	PIMAGE_DOS_HEADER dosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+	PIMAGE_NT_HEADERS ntHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(moduleBase + dosHeader->e_lfanew);
+	PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(ntHeader);
+
+	bool bCanMerge = false;
+	for (SIZE_T i = 0, j = ntHeader->FileHeader.NumberOfSections; i < j; ++i)
+	{
+		if ((section[i].Characteristics & flag) != 0)
+		{
+			const intptr_t start = moduleBase + section[i].VirtualAddress;
+			const intptr_t end = start + section[i].Misc.VirtualSize;
+			if (bCanMerge)
+			{
+				// Merge adjacent sections, as there's technically nothing preventing patterns from crossing them.
+				if (result.back().second == start)
+				{
+					result.back().second = end;
+					continue;
+				}
+			}
+
+			result.emplace_back(start, end);
+			bCanMerge = true;
+		}
+	}
+
+	return result;
 }
 
+scan_segments get_all_readable_sections(void* module)
+{
+	return get_all_sections_with_flag_internal(module, IMAGE_SCN_MEM_READ);
+}
+
+scan_segments get_all_code_sections(void* module)
+{
+	return get_all_sections_with_flag_internal(module, IMAGE_SCN_CNT_CODE);
+}
+
+scan_segments get_section_by_name(void* module, std::string_view name)
+{
+	scan_segments result;
+
+	assert(module != nullptr);
+
+	const intptr_t moduleBase = reinterpret_cast<intptr_t>(module);
+	PIMAGE_DOS_HEADER dosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+	PIMAGE_NT_HEADERS ntHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(moduleBase + dosHeader->e_lfanew);
+	PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(ntHeader);
+
+	for (SIZE_T i = 0, j = ntHeader->FileHeader.NumberOfSections; i < j; ++i)
+	{
+		const char* NameCh = reinterpret_cast<const char*>(section[i].Name);
+		if (std::string_view(NameCh, strnlen_s(NameCh, std::size(section[i].Name))) == name)
+		{
+			const intptr_t start = moduleBase + section[i].VirtualAddress;
+			const intptr_t end = start + section[i].Misc.VirtualSize;
+			result.emplace_back(start, end);
+		}
+	}
+
+	return result;
+}
+
+
+const scan_segments& details::get_default_scan_segments()
+{
+	static const scan_segments defaultSegments = get_all_readable_sections(GetModuleHandle(nullptr));
+	return defaultSegments;
+}
 
 #if PATTERNS_USE_HINTS
 static auto& getHints()
@@ -108,45 +179,6 @@ static void TransformPattern(std::string_view pattern, pattern_string& data, pat
 	}
 }
 
-class executable_meta
-{
-private:
-	uintptr_t m_begin;
-	uintptr_t m_end;
-
-public:
-	explicit executable_meta(uintptr_t module)
-	{
-		PIMAGE_DOS_HEADER dosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
-		PIMAGE_NT_HEADERS ntHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(module + dosHeader->e_lfanew);
-
-		m_begin = module + ntHeader->OptionalHeader.BaseOfCode;
-		m_end = m_begin + ntHeader->OptionalHeader.SizeOfCode;
-
-		// Executables with DRM bypassed may lie in their SizeOfCode and underreport severely
-		// We can somewhat detect this by checking if the code entry point is past
-		// these boundaries. It's not perfect, but it's safe.
-		const uintptr_t entryPoint = module + ntHeader->OptionalHeader.AddressOfEntryPoint;
-		if (entryPoint >= m_begin && entryPoint < m_end)
-		{
-			return;
-		}
-
-		// Alternate heuristics - scan the entire executable, minus headers
-		const uintptr_t sizeOfHeaders = ntHeader->OptionalHeader.SizeOfHeaders;
-		m_begin = module + sizeOfHeaders;
-		m_end = module + (ntHeader->OptionalHeader.SizeOfImage - sizeOfHeaders);
-	}
-
-	executable_meta(uintptr_t begin, uintptr_t end)
-		: m_begin(begin), m_end(end)
-	{
-	}
-
-	inline uintptr_t begin() const { return m_begin; }
-	inline uintptr_t end() const   { return m_end; }
-};
-
 namespace details
 {
 
@@ -193,10 +225,7 @@ void basic_pattern_impl::EnsureMatches(uint32_t maxCount)
 		return;
 	}
 
-	// scan the executable for code
-	executable_meta executable = m_rangeStart != 0 && m_rangeEnd != 0 ? executable_meta(m_rangeStart, m_rangeEnd) : executable_meta(m_rangeStart);
-
-	auto matchSuccess = [&] (uintptr_t address)
+	auto matchSuccess = [this, maxCount] (uintptr_t address)
 	{
 #if PATTERNS_USE_HINTS
 		getHints().emplace(m_hash, address);
@@ -224,24 +253,27 @@ void basic_pattern_impl::EnsureMatches(uint32_t maxCount)
 		}
 	}
 
-	for (uintptr_t i = executable.begin(), end = executable.end() - maskSize; i <= end;)
+	for (const auto& segment : m_scanSegments)
 	{
-		uint8_t* ptr = reinterpret_cast<uint8_t*>(i);
-		ptrdiff_t j = maskSize - 1;
-
-		while((j >= 0) && pattern[j] == (ptr[j] & mask[j])) j--;
-
-		if(j < 0)
+		for (intptr_t i = segment.first, end = segment.second - maskSize; i <= end;)
 		{
-			m_matches.emplace_back(ptr);
+			uint8_t* ptr = reinterpret_cast<uint8_t*>(i);
+			ptrdiff_t j = maskSize - 1;
 
-			if (matchSuccess(i))
+			while((j >= 0) && pattern[j] == (ptr[j] & mask[j])) j--;
+
+			if(j < 0)
 			{
-				break;
+				m_matches.emplace_back(ptr);
+
+				if (matchSuccess(i))
+				{
+					break;
+				}
+				i++;
 			}
-			i++;
+			else i += std::max(ptrdiff_t(1), j - Last[ ptr[j] ]);
 		}
-		else i += std::max(ptrdiff_t(1), j - Last[ ptr[j] ]);
 	}
 
 	m_matched = true;
