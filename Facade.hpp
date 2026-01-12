@@ -34,9 +34,16 @@
 // VIRTUAL METHODS:
 // When calling virtual methods of DynamicClass, you can use the original pointer directly, using a Facade for this provides no benefit.
 // HOWEVER, if the virtual method table layout changes across binary versions, you can read the VMT pointer (typically the first pointer in the class)
-// and then set up a Facade of __thiscall function pointers over it. Then, you can use the Facade as you would use real virtual methods,
+// and then set up a Facade of __thiscall function pointers or method pointers over it. Then, you can use the Facade as you would use real virtual methods,
 // except you need to explicitly pass DynamicClass* as the first argument to each call (as a 'this' pointer).
 // Similarly, optional Facade members may be used to call virtual methods that may be absent from specific binary versions.
+// You can define and use method Facades in one of the two ways:
+// 1. FACADE_MEMBER(void(__thiscall*)(DynamicClass* _this, /*args...*/), m_methodPtr);
+//    Usage: facade.m_methodPtr(obj, /*args...*/);
+//
+// 2. FACADE_MEMBER(void(DynamicClass::*)(/*args...*/), m_methodPtr);
+//    Usage: (obj->*facade.m_methodPtr.value())(/*args...*/);
+//      (in this case, the use of .value() is mandatory)
 
 // GOTCHAS AND USAGE LIMITATIONS:
 // 1. Class fields that are classes themselves cannot have their fields accessed through the dot operator. Use operator -> or .value(), much like when dereferencing a std::reference_wrapper.
@@ -44,7 +51,7 @@
 //      facade.innerClass.count = 0;
 //    GOOD:
 //      facade.innerClass->count = 0;
-//     OR
+//     OR:
 //      facade.innerClass.value().count = 0;
 // 2. Const object pointers can only be used to instantiate Facades where -all- fields are const. This might be fine for small Facade classes, but gets out of control with more fields quickly.
 //    As an alternative, consider constructing a const Facade class from an object pointer with constness casted away (if present):
