@@ -268,7 +268,8 @@ void basic_pattern_impl::EnsureMatches(uint32_t maxCount)
 
 				if (matchSuccess(i))
 				{
-					break;
+					m_matched = true;
+					return;
 				}
 				i++;
 			}
