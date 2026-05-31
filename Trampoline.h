@@ -1,7 +1,7 @@
 #pragma once
 
 // Trampolines are useless on x86 arch
-#ifdef _WIN64
+#ifdef _M_X64
 
 #include <cassert>
 #include <memory>

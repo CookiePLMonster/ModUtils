@@ -107,7 +107,7 @@ namespace Memory
 	template<typename Var, typename AT>
 	inline void		WriteMemDisplacement(AT address, Var var, [[maybe_unused]] ptrdiff_t bytesAfterDisplacement = 0)
 	{
-#ifdef _WIN64
+#ifdef _M_X64
 		WriteOffsetValue(address, var, bytesAfterDisplacement);
 #else
 		Patch(address, var);
@@ -117,7 +117,7 @@ namespace Memory
 	template<typename Var, typename AT>
 	inline void		ReadMemDisplacement(AT address, Var& var, [[maybe_unused]] ptrdiff_t bytesAfterDisplacement = 0)
 	{
-#ifdef _WIN64
+#ifdef _M_X64
 		ReadOffsetValue(address, var, bytesAfterDisplacement);
 #else
 		Read(address, var);

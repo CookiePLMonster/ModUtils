@@ -129,7 +129,7 @@ static bool PatchIAT_ByPointers()
 	wrapped_function::origFunction = HOOKED_FUNCTION;
 	memcpy(wrapped_function::origCode, reinterpret_cast<void*>(wrapped_function::origFunction), sizeof(wrapped_function::origCode));
 
-#ifdef _WIN64
+#ifdef _M_X64
 	Trampoline* trampoline = Trampoline::MakeTrampoline(wrapped_function::origFunction);
 	InjectHook(wrapped_function::origFunction, trampoline->Jump(&wrapped_function::OverwritingHook), HookType::Jump);
 #else
