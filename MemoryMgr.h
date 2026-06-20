@@ -38,11 +38,16 @@
 
 namespace Memory
 {
-	enum class HookType
+	namespace details
 	{
-		Call,
-		Jump,
-	};
+		enum class HookType
+		{
+			Call,
+			Jump,
+		};
+	}
+
+	using details::HookType;
 
 	template<typename AT>
 	inline AT DynBaseAddress(AT address)
@@ -179,12 +184,7 @@ namespace Memory
 
 	namespace DynBase
 	{
-		enum class HookType
-		{
-			Call,
-			Jump,
-		};
-
+		using details::HookType;
 		using Memory::DynBaseAddress;
 
 		template<typename T, typename AT>
@@ -283,12 +283,7 @@ namespace Memory
 
 	namespace VP
 	{
-		enum class HookType
-		{
-			Call,
-			Jump,
-		};
-
+		using details::HookType;
 		using Memory::DynBaseAddress;
 
 		template<typename T, typename AT>
@@ -419,12 +414,7 @@ namespace Memory
 
 		namespace DynBase
 		{
-			enum class HookType
-			{
-				Call,
-				Jump,
-			};
-
+			using details::HookType;
 			using Memory::DynBaseAddress;
 
 			template<typename T, typename AT>
