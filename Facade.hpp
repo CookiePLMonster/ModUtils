@@ -57,8 +57,7 @@
 //    As an alternative, consider constructing a const Facade class from an object pointer with constness casted away (if present):
 //      const DynamicClassFacade facade(std::remove_const(obj));
 //    Const Facades behave like const objects, and they forbid any writes to the underlying class fields.
-// 3. C-style arrays cannot be Facade members. Use std::array, as it is guaranteed to have an identical layout to a plain C array.
-// 4. FACADE_MEMBER cannot accept template types with a comma in it (like an aforementioned std::array). Use a typedef or an 'using' type alias.
+// 3. FACADE_MEMBER cannot accept template types with a comma in it (like std::array). Use a typedef or an 'using' type alias.
 
 #include <cassert>
 #include <cstddef>
@@ -77,13 +76,13 @@ namespace facade::details
 	public:
 		using is_optional = std::false_type;
 
-		field_wrapper(void* obj, size_t offset)
+		field_wrapper(void* obj, std::size_t offset)
 			: m_ref(*reinterpret_cast<T*>(reinterpret_cast<char*>(obj) + offset))
 		{
 			assert(offset != MEMBER_UNINITIALIZED);
 		}
 
-		field_wrapper(const void* obj, size_t offset)
+		field_wrapper(const void* obj, std::size_t offset)
 			: m_ref(*reinterpret_cast<T*>(reinterpret_cast<const char*>(obj) + offset))
 		{
 			static_assert(std::is_const_v<T>, "Facades constructed from a const object may only have const fields");
@@ -103,9 +102,9 @@ namespace facade::details
 			return *this;
 		}
 
-		template<typename... Args>
+		template<typename... Args, typename = std::enable_if_t<!std::is_array_v<T>>>
 		inline decltype(auto) operator[](Args&&... args) { return m_ref.operator[](std::forward<Args>(args)...); }
-		template<typename... Args>
+		template<typename... Args, typename = std::enable_if_t<!std::is_array_v<T>>>
 		inline decltype(auto) operator[](Args&&... args) const { return std::as_const(m_ref).operator[](std::forward<Args>(args)...); }
 
 		template<typename... Args>
@@ -133,13 +132,13 @@ namespace facade::details
 	public:
 		using is_optional = std::true_type;
 
-		optional_field_wrapper(void* obj, size_t offset)
+		optional_field_wrapper(void* obj, std::size_t offset)
 			: m_ptr(offset != MEMBER_ABSENT ? reinterpret_cast<T*>(reinterpret_cast<char*>(obj) + offset) : nullptr)
 		{
 			assert(offset != MEMBER_UNINITIALIZED);
 		}
 
-		optional_field_wrapper(const void* obj, size_t offset)
+		optional_field_wrapper(const void* obj, std::size_t offset)
 			: m_ptr(offset != MEMBER_ABSENT ? reinterpret_cast<T*>(reinterpret_cast<const char*>(obj) + offset) : nullptr)
 		{
 			static_assert(std::is_const_v<T>, "Facades constructed from a const object may only have const fields");
