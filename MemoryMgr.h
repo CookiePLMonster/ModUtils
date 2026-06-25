@@ -26,13 +26,15 @@
 
 #ifndef _MEMORY_DECLS_ONLY
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 
 #include <cstdint>
+#include <cstring>
 #include <cassert>
 
-#include <algorithm>
 #include <initializer_list>
 #include <utility>
 
@@ -64,49 +66,50 @@ namespace Memory
 	inline void		Patch(AT address, T value)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		*(T*)address = value;
+		std::memcpy(reinterpret_cast<void*>(address), std::addressof(value), sizeof(value));
 	}
 
 	template<typename AT>
-	inline void		Patch(AT address, std::initializer_list<uint8_t> list )
+	inline void		Patch(AT address, std::initializer_list<uint8_t> list)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		uint8_t* addr = reinterpret_cast<uint8_t*>(address);
-		std::copy( list.begin(), list.end(), addr );
+		std::memcpy(reinterpret_cast<void*>(address), list.begin(), list.size() * sizeof(decltype(list)::value_type));
 	}
 
 	template<typename Var, typename AT>
 	inline void		Read(AT address, Var& var)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		var = *(Var*)address;
+		std::memcpy(reinterpret_cast<void*>(std::addressof(var)), reinterpret_cast<const void*>(address), sizeof(var));
 	}
 
 	template<typename AT>
 	inline void		Nop(AT address, size_t count)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		memset((void*)address, 0x90, count);
+		std::memset(reinterpret_cast<void*>(address), 0x90, count);
 	}
 
 	template<typename Var, typename AT>
 	inline void		WriteOffsetValue(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		intptr_t dstAddr = (intptr_t)address;
+		const intptr_t dstAddr = intptr_t(address);
 		intptr_t srcAddr;
-		memcpy( &srcAddr, std::addressof(var), sizeof(srcAddr) );
-		*(int32_t*)dstAddr = static_cast<int32_t>(srcAddr - dstAddr - (4 + bytesAfterDisplacement));
+		std::memcpy(&srcAddr, std::addressof(var), sizeof(srcAddr));
+		Patch(address, static_cast<int32_t>(srcAddr - dstAddr - (4 + bytesAfterDisplacement)));
 	}
 
 	template<typename Var, typename AT>
 	inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		intptr_t srcAddr = (intptr_t)address;
-		intptr_t dstAddr = srcAddr + (4 + bytesAfterDisplacement) + *(int32_t*)srcAddr;
-		var = {};
-		memcpy( std::addressof(var), &dstAddr, sizeof(dstAddr) );
+		int32_t offset;
+		Read(address, offset);
+
+		const intptr_t srcAddr = intptr_t(address);
+		const intptr_t dstAddr = srcAddr + (4 + bytesAfterDisplacement) + offset;
+		std::memcpy(std::addressof(var), &dstAddr, sizeof(dstAddr));
 	}
 
 	template<typename Var, typename AT>
@@ -138,28 +141,28 @@ namespace Memory
 	template<typename AT, typename Func>
 	inline void		InjectHook(AT address, Func hook)
 	{
-		WriteOffsetValue( (intptr_t)address + 1, hook );
+		WriteOffsetValue(intptr_t(address) + 1, hook);
 	}
 
 	template<typename AT, typename Func>
 	inline void		InjectHook(AT address, Func hook, HookType type)
 	{
-		*(uint8_t*)address = type == HookType::Jump ? 0xE9 : 0xE8;
+		Patch<uint8_t>(address, type == HookType::Jump ? 0xE9 : 0xE8);
 		InjectHook(address, hook);
 	}
 
 	template<typename Func, typename AT>
 	inline void		ReadCall(AT address, Func& func)
 	{
-		ReadOffsetValue( (intptr_t)address+1, func );
+		ReadOffsetValue(intptr_t(address) + 1, func);
 	}
 
 	template<typename AT>
 	inline void*	ReadCallFrom(AT address, ptrdiff_t offset = 0)
 	{
 		uintptr_t addr;
-		ReadCall( address, addr );
-		return reinterpret_cast<void*>( addr + offset );
+		ReadCall(address, addr);
+		return reinterpret_cast<void*>(addr + offset);
 	}
 
 	inline auto InterceptCall = [](auto address, auto& func, auto&& hook)
@@ -170,15 +173,14 @@ namespace Memory
 
 	inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
 	{
-		const uint8_t* mem = reinterpret_cast<const uint8_t*>(address);
-		return std::equal( val.begin(), val.end(), mem );
+		return std::memcmp(reinterpret_cast<const void*>(address), val.begin(), val.size() * sizeof(decltype(val)::value_type)) == 0;
 	}
 
 	template<typename AT>
 	inline AT Verify(AT address, uintptr_t expected)
 	{
 		static_assert(sizeof(AT) == sizeof(uintptr_t), "AT must be pointer sized");
-		assert( uintptr_t(address) == expected );
+		assert(uintptr_t(address) == expected);
 		return address;
 	}
 
@@ -249,7 +251,7 @@ namespace Memory
 		template<typename AT, typename Func>
 		inline void		InjectHook(AT address, Func hook, HookType type)
 		{
-			Memory::InjectHook(DynBaseAddress(address), hook, static_cast<Memory::HookType>(type));
+			Memory::InjectHook(DynBaseAddress(address), hook, type);
 		}
 
 		template<typename Func, typename AT>
@@ -291,7 +293,7 @@ namespace Memory
 		{
 			DWORD		dwProtect;
 			VirtualProtect((void*)address, sizeof(T), PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::Patch( address, value );
+			Memory::Patch(address, value);
 			VirtualProtect((void*)address, sizeof(T), dwProtect, &dwProtect);
 		}
 
@@ -304,18 +306,14 @@ namespace Memory
 			VirtualProtect((void*)address, list.size(), dwProtect, &dwProtect);
 		}
 
-		template<typename Var, typename AT>
-		inline void		Read(AT address, Var& var)
-		{
-			Memory::Read(address, var);
-		}
+		using Memory::Read;
 
 		template<typename AT>
 		inline void		Nop(AT address, size_t count)
 		{
 			DWORD		dwProtect;
 			VirtualProtect((void*)address, count, PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::Nop( address, count );
+			Memory::Nop(address, count);
 			VirtualProtect((void*)address, count, dwProtect, &dwProtect);
 		}
 
@@ -329,11 +327,7 @@ namespace Memory
 			VirtualProtect((void*)address, 4, dwProtect, &dwProtect);
 		}
 
-		template<typename Var, typename AT>
-		inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
-		{
-			Memory::ReadOffsetValue(address, var, bytesAfterDisplacement);
-		}
+		using Memory::ReadOffsetValue;
 
 		template<typename Var, typename AT>
 		inline void		WriteMemDisplacement(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
@@ -345,11 +339,7 @@ namespace Memory
 			VirtualProtect((void*)address, 4, dwProtect, &dwProtect);
 		}
 
-		template<typename Var, typename AT>
-		inline void		ReadMemDisplacement(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
-		{
-			Memory::ReadMemDisplacement(address, var, bytesAfterDisplacement);
-		}
+		using Memory::ReadMemDisplacement;
 
 		inline auto InterceptMemDisplacement = [](auto address, auto& orig, auto& var, ptrdiff_t bytesAfterDisplacement = 0)
 		{
@@ -366,7 +356,7 @@ namespace Memory
 			DWORD		dwProtect;
 
 			VirtualProtect((void*)((DWORD_PTR)address + 1), 4, PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::InjectHook( address, hook );
+			Memory::InjectHook(address, hook);
 			VirtualProtect((void*)((DWORD_PTR)address + 1), 4, dwProtect, &dwProtect);
 		}
 
@@ -376,21 +366,12 @@ namespace Memory
 			DWORD		dwProtect;
 
 			VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect);
-			Memory::InjectHook( address, hook, static_cast<Memory::HookType>(type) );
+			Memory::InjectHook(address, hook, type);
 			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
 		}
 
-		template<typename Func, typename AT>
-		inline void		ReadCall(AT address, Func& func)
-		{
-			Memory::ReadCall(address, func);
-		}
-
-		template<typename AT>
-		inline void*	ReadCallFrom(AT address, ptrdiff_t offset = 0)
-		{
-			return Memory::ReadCallFrom(address, offset);
-		}
+		using Memory::ReadCall;
+		using Memory::ReadCallFrom;
 
 		constexpr auto InterceptCall = [](auto address, auto& func, auto&& hook)
 		{
@@ -401,16 +382,8 @@ namespace Memory
 			VirtualProtect((void*)address, 5, dwProtect, &dwProtect);
 		};
 
-		inline bool MemEquals(uintptr_t address, std::initializer_list<uint8_t> val)
-		{
-			return Memory::MemEquals(address, std::move(val));
-		}
-
-		template<typename AT>
-		inline AT Verify(AT address, uintptr_t expected)
-		{
-			return Memory::Verify(address, expected);
-		}
+		using Memory::MemEquals;
+		using Memory::Verify;
 
 		namespace DynBase
 		{
@@ -424,7 +397,7 @@ namespace Memory
 			}
 
 			template<typename AT>
-			inline void		Patch(AT address, std::initializer_list<uint8_t> list )
+			inline void		Patch(AT address, std::initializer_list<uint8_t> list)
 			{
 				VP::Patch(DynBaseAddress(address), std::move(list));
 			}
@@ -444,13 +417,13 @@ namespace Memory
 			template<typename Var, typename AT>
 			inline void		WriteOffsetValue(AT address, Var var, ptrdiff_t bytesAfterDisplacement = 0)
 			{
-				VP::WriteOffsetValue<bytesAfterDisplacement>(DynBaseAddress(address), var, bytesAfterDisplacement);
+				VP::WriteOffsetValue(DynBaseAddress(address), var, bytesAfterDisplacement);
 			}
 
 			template<typename Var, typename AT>
 			inline void		ReadOffsetValue(AT address, Var& var, ptrdiff_t bytesAfterDisplacement = 0)
 			{
-				VP::ReadOffsetValue<bytesAfterDisplacement>(DynBaseAddress(address), var, bytesAfterDisplacement);
+				VP::ReadOffsetValue(DynBaseAddress(address), var, bytesAfterDisplacement);
 			}
 
 			template<typename Var, typename AT>
@@ -479,7 +452,7 @@ namespace Memory
 			template<typename AT, typename Func>
 			inline void		InjectHook(AT address, Func hook, HookType type)
 			{
-				VP::InjectHook(DynBaseAddress(address), hook, static_cast<VP::HookType>(type));
+				VP::InjectHook(DynBaseAddress(address), hook, type);
 			}
 
 			template<typename Func, typename AT>
