@@ -71,22 +71,34 @@ namespace facade::details
 	static constexpr std::size_t MEMBER_ABSENT = static_cast<std::size_t>(-2);
 
 	template<typename T>
+	inline T* cast_facade_member(void* obj, std::size_t offset)
+	{
+		assert(offset != MEMBER_UNINITIALIZED);
+		return std::launder(reinterpret_cast<T*>(reinterpret_cast<char*>(obj) + offset));
+	}
+
+	template<typename T>
+	inline T* cast_facade_member(const void* obj, std::size_t offset)
+	{
+		static_assert(std::is_const_v<T>, "Facades constructed from a const object may only have const fields");
+		assert(offset != MEMBER_UNINITIALIZED);
+		return std::launder(reinterpret_cast<T*>(reinterpret_cast<const char*>(obj) + offset));
+	}
+
+	template<typename T>
 	class field_wrapper
 	{
 	public:
 		using is_optional = std::false_type;
 
 		field_wrapper(void* obj, std::size_t offset)
-			: m_ref(*reinterpret_cast<T*>(reinterpret_cast<char*>(obj) + offset))
+			: m_ref(*cast_facade_member<T>(obj, offset))
 		{
-			assert(offset != MEMBER_UNINITIALIZED);
 		}
 
 		field_wrapper(const void* obj, std::size_t offset)
-			: m_ref(*reinterpret_cast<T*>(reinterpret_cast<const char*>(obj) + offset))
+			: m_ref(*cast_facade_member<T>(obj, offset))
 		{
-			static_assert(std::is_const_v<T>, "Facades constructed from a const object may only have const fields");
-			assert(offset != MEMBER_UNINITIALIZED);
 		}
 
 		field_wrapper() = delete;
@@ -133,16 +145,13 @@ namespace facade::details
 		using is_optional = std::true_type;
 
 		optional_field_wrapper(void* obj, std::size_t offset)
-			: m_ptr(offset != MEMBER_ABSENT ? reinterpret_cast<T*>(reinterpret_cast<char*>(obj) + offset) : nullptr)
+			: m_ptr(offset != MEMBER_ABSENT ? cast_facade_member<T>(obj, offset) : nullptr)
 		{
-			assert(offset != MEMBER_UNINITIALIZED);
 		}
 
 		optional_field_wrapper(const void* obj, std::size_t offset)
-			: m_ptr(offset != MEMBER_ABSENT ? reinterpret_cast<T*>(reinterpret_cast<const char*>(obj) + offset) : nullptr)
+			: m_ptr(offset != MEMBER_ABSENT ? cast_facade_member<T>(obj, offset) : nullptr)
 		{
-			static_assert(std::is_const_v<T>, "Facades constructed from a const object may only have const fields");
-			assert(offset != MEMBER_UNINITIALIZED);
 		}
 
 		optional_field_wrapper() = delete;
