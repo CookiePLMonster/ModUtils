@@ -184,6 +184,13 @@ namespace Memory
 		return address;
 	}
 
+	template<typename AT = const void*>
+	inline void FlushCodeChanges(AT address = AT(), std::size_t size = 0)
+	{
+		const void* addr = reinterpret_cast<const void*>(address);
+		FlushInstructionCache(GetCurrentProcess(), addr, size);
+	}
+
 	namespace DynBase
 	{
 		using details::HookType;
@@ -384,6 +391,7 @@ namespace Memory
 
 		using Memory::MemEquals;
 		using Memory::Verify;
+		using Memory::FlushCodeChanges;
 
 		namespace DynBase
 		{
